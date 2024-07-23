@@ -19,6 +19,42 @@ Original data files can be found in the folder labelled *Metabarcoding publicati
 
 * __Additional diagnostics extract.xlsx__ (Shipping containers)
 
+
+Notes:
+
+Loading country
+
+*	This is derived from multiple sources including the container event data provided by the shipping companies.
+*	Indicates the country in which a container was loaded onto a vessel for export to another country. The container could be full or empty. 
+*	Unfortunately, there are some gaps and errors in the load country data. This is the result of stitching together event data from different systems/sources.
+*	Please note, where you see duplicate loading countries for the same date and different destination countries – this is a likely indication of a **transhipment event**.
+
+Origin country  
+
+*	This is derived from ICS data and therefore only existing for events with a destination of Australia i.e. when the container was imported into Australia. 
+*	It indicates the origin of the goods in the container i.e. most likely where they were packed into the container. 
+
+Goods description
+
+*	This is derived from ICS, AIMS data and therefore only existing for events with a destination of Australia i.e. when the container was imported into Australia.
+
+Shipping company goods description 
+
+*	Goods description provided by the shipping company. 
+
+Destination country    
+
+*	Generally the country where a container is discharged from a vessel.
+*	Can include transshipment countries. 
+
+Arrival sequence number and Is latest arrival
+
+*	Arrival sequence number 1 = the last voyage for the container i.e. when it was imported to Australia prior to unpacking and sampling. 
+*	Ordering of the arrival sequence number allows you to track the movement history of the container. 
+*	Unfortunately, the sequencing of transshipment events appears to be jumbled in some cases. 
+
+
+
 **Species specific files:**
 
 *Metabarcoding publication 2023/Nucleic acid data/*
@@ -36,31 +72,22 @@ Original data files can be found in the folder labelled *Metabarcoding publicati
 * __ASV_all_tax_count.tsv__  (eDNA)
 * __ASV_cdna_tax_count.tsv__ (eRNA)
 
-## curated data
-
-#### Shipping
-
-**Container_info.csv**
-
-Columns:
-
-* ContainerID (unique identifyer)
-* origin country (where it was before docking in Australia)
-* contents (contents when vacuumed)
-
-Description:
-
-This file has all the meta data on the shipping containers and will be used for risk assessment
-
-
-#### Spp specific
-
-#### Metabarcoding
-
 
 ## Code
 
-Step 1: Curating data
+
+File 1:
+
+* File name: filter_metabarcodingDNA_file-Arthropoda.R
+* Purpose: filtering the very large ASV file with all phylum to only arthropoda asvs 
+
+File 2:
+
+* File name: initial_data_exploration.R
+* Purpose: To identify the container ids to link all the datasets by
+
+File 3:
+
 
 
 
