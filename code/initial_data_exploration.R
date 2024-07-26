@@ -244,3 +244,34 @@ arrange(container_id, Arrival.sequence.number) %>%
          Shipping.company.goods.description,
          Goods.khapra.classification,
          Goods.hitchhiker.risk.classification) %>% View
+
+
+# metabarcoding -----------------------------------------------------------
+
+
+dna$PI. %>% hist
+sum(dna$PI. > 99)/length(dna$PI.) 
+sum(dna$PI. > 95)/length(dna$PI.)
+sum(dna$PI. > 90)/length(dna$PI.)
+
+rna$PI. %>% hist
+sum(rna$PI. > 95, na.rm = T)/length(rna$PI.) 
+sum(rna$PI. > 95, na.rm = T)/length(rna$PI.) 
+sum(rna$PI. > 95, na.rm = T)/length(rna$PI.)
+
+
+# spp specific ------------------------------------------------------------
+
+spp %>% names
+lapply(spp, names)
+
+common
+
+
+do.call('bind_rows', spp)
+
+apply(spp$Khapra_beetle, 2, function(x) sum(x <= 0, na.rm = T))
+
+
+spp$Khapra_beetle[spp$Khapra_beetle$Olson_R3 != 0 & spp$Khapra_beetle$Furui_DNA_R3 == 0,] %>% nrow
+spp$Khapra_beetle[spp$Khapra_beetle$Olson_R3 == 0 & spp$Khapra_beetle$Furui_DNA_R3 != 0,] %>% nrow
