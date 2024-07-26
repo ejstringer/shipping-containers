@@ -228,3 +228,19 @@ table(dna_container_id %in% ship_simple$sample_id)
 dna_container_id[!dna_container_id %in% ship_simple$sample_id ]
 
 table(unique(ship_simple$sample_id) %in% dna_container_id)
+
+
+## ship extra containers ------
+ship[!(ship$Container.number %in% ant$Container.Number | 
+  ship$Container.number %in% bmsb$Container.Number),]
+
+# goods -------------------------------------------------------------------
+
+
+ship_simple %>% 
+arrange(container_id, Arrival.sequence.number) %>% 
+  select(container_id, Arrival.sequence.number, 
+         Arrival.date, Goods.description, 
+         Shipping.company.goods.description,
+         Goods.khapra.classification,
+         Goods.hitchhiker.risk.classification) %>% View
