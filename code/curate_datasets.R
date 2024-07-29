@@ -20,12 +20,20 @@ spp <- lapply(paste0('./data/species_specific/', spp_names), read.csv)
 names(spp) <- sub('\\.csv', '', sub('_2023', '', gsub(' ', '_', spp_names)))
 spp %>% names
 
+priority <- read.csv('./data/high_priority_insect_species.csv')
+
+quality <- read.csv('./data/C05246_Master metadata_sampledata.csv')
 
 # ship --------------------------------------------------------------------
+
 # simplify
 ship_simple <- ship %>% 
-  filter(Container.number %in% ant$Container.Number | 
-           Container.number %in% bmsb$Container.Number) %>% 
+  left_join(quality[,c('Unique.Sample.Identifier',
+                       'Conc..2..ng.ul.', 'X260.280', 'X260.230',
+                       'Working.Dilution')],
+            by = c('Lab.code' = 'Unique.Sample.Identifier')) %>% 
+  filter(Container.number %in% spp$Electric_Ant$Container.Number | 
+           Container.number %in% spp$BMSB$Container.Number) %>% 
   mutate(sample_id = sub('C05246_', 'X', Lab.code),
          sample_id = ifelse(sample_id == '', 
                             paste0(Container.sample.ID, 'xx'), sample_id),
@@ -33,7 +41,8 @@ ship_simple <- ship %>%
          sample_id = ifelse(Sample.method=='SWEEP',
                             paste0(sample_id, '_s'),
                             sample_id)) %>% 
-  filter(!grepl('\\.2', sample_id)) %>% 
+  filter(!grepl('\\.2', sample_id),
+         Sample.method != 'SWEEP') %>% 
   relocate(c(Identification.type, Original.container.sample.ID),
            .after = Container.number) %>% 
   rename(container_id = Container.number) %>% 
@@ -43,8 +52,9 @@ ship_simple <- ship %>%
 
 collection <- ship_simple %>% 
   select(sample_id, container_id, Collection.date, 
-         Sample.method, Sample.weight..g., Identification.type,
-         Lab.name) %>% 
+         Sample.method, Sample.weight..g., 
+         Conc..2..ng.ul., X260.280, X260.230, Working.Dilution,
+         Identification.type, Lab.name) %>% 
   rename(collection_date = Collection.date,
          sample_method = Sample.method,
          sample_weight = Sample.weight..g.,
@@ -54,12 +64,16 @@ collection <- ship_simple %>%
   mutate(visual_contents = ifelse(duplicated(visual_contents),
                                   '',visual_contents)) %>% 
   group_by(sample_id, container_id, collection_date,
-           sample_method, sample_weight, visual_lab) %>% 
+           sample_method, sample_weight,
+           Conc..2..ng.ul., X260.280, X260.230, Working.Dilution,
+           visual_lab) %>% 
   summarise(visual_contents = paste(visual_contents, collapse = '')) %>%
   ungroup %>% 
   mutate(visual_contents = gsub("LC","L;C",visual_contents),
          visual_contents = gsub("LS","L;S",visual_contents),
          visual_contents = gsub("NS","N;S",visual_contents)) %>%
+  setNames(str_trim(tolower(gsub("[[:punct:]]+"," ",names(.))))) %>% 
+  setNames(gsub(' ', '_', names(.))) %>% 
   unique() 
 collection %>% names
 table(collection$visual_contents)
@@ -111,7 +125,7 @@ ship_simple %>% names
 # 1 4 7 31:53
 table(ship_simple$Identification.type,
       ship_simple$Lab.name)
-ship_simple %>% filter(Identification.type == '') %>% View
+ship_simple %>% filter(Identification.type == '') %>% head
 
 visual <- ship_simple[,c(1,4, 7, 31:53)] %>% 
   filter(Identification.type != '') %>% 
@@ -145,16 +159,21 @@ dna_simple <- dna %>% filter(PI. >= 90) %>%
   setNames(gsub('QC_', 'QC', names(.))) %>%
   setNames(gsub('PI_', 'PI', names(.))) %>%
   rename_if(!grepl('X2', names(.)), tolower) %>% 
-  rename(PI = pi, QC = qc, asv_id = id) 
+  rename(PI = pi, QC = qc, asv_id = id) %>% 
+  mutate(high_priority = best_hit %in% str_trim(priority$species)) %>% 
+  relocate(high_priority, .after = read_count)
+
+
 rna_simple <- rna %>% filter(PI. >= 90) %>% 
   setNames(gsub('\\.', '_', names(.))) %>%
   setNames(gsub('_cDNA', '', names(.))) %>%
   setNames(gsub('QC_', 'QC', names(.))) %>%
   setNames(gsub('PI_', 'PI', names(.))) %>%
   rename_if(!grepl('X2', names(.)), tolower) %>% 
-  rename(PI = pi, QC = qc, asv_id = id)
+  rename(PI = pi, QC = qc, asv_id = id) %>% 
+  mutate(high_priority = best_hit %in% str_trim(priority$species)) %>% 
+  relocate(high_priority, .after = read_count)
 
-names(dna_simple)[1:17]==names(rna_simple)[1:17]
 
 # species specific --------------------------------------------------------
 lapply(spp, names)
@@ -189,7 +208,9 @@ spp_specific <- do.call('bind_rows', spp_renamed) %>%
                               'Brown marmorated stink bug',
                               common_name),
          common_name = gsub('_', ' ', tolower(common_name)),
-         sample_id = sub('C05246_', '', sample_id)) %>% 
+         sample_id = sub('C05246_', '', sample_id),
+         sample_id = sub('\\.1','', sample_id)) %>%
+  filter(!grepl('\\.2', sample_id)) %>% 
   select(-method_collection, -container_id) %>% 
   relocate(sample_id, lab_code, common_name, species) %>% 
   unique()
