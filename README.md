@@ -9,7 +9,7 @@ Pest insects in shipping containers eDNA and eRNA anlaysis
 * Risk assessment (visual detection and food/habitat of pest in container)
 
 
-## Metadata
+## Original data
 
 Original data files can be found in the folder labelled *Metabarcoding publication 2023* (owed by Alejandro Trujillo-Gonzalez)
 
@@ -36,9 +36,14 @@ Original data files can be found in the folder labelled *Metabarcoding publicati
 * __ASV_all_tax_count.tsv__  (eDNA)
 * __ASV_cdna_tax_count.tsv__ (eRNA)
 
+**Other**
+
+* __C05246_metadata_sampledata.csv__ (dna extraction quality)
+* __high_priority_insect_species.csv__ (Ausralia government concerns)
+
 ## Curated data
 
-![](./data/db_diagram.png)
+![Fig 1. diagram of curated data](./data/db_diagram.png)
 
 ## Code
 
@@ -54,6 +59,9 @@ File 2:
 * Purpose: To identify the container ids to link all the datasets by
 
 File 3:
+
+* File name: curate_datasets.R
+* Purpose: To curate and simplify the large amounts of data (see Fig 1)
 
 
 
