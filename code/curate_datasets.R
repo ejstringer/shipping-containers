@@ -1,9 +1,20 @@
 
 # Steps:
-## Ship
-#   1. sample_id - rename X20210714_1354.1 and remove X20210714_1354.2 from ship
-#   2. 
-#   3. 
+
+# •	Renamed 20210714_1354.1 to 20210714_1354 and removed 20210714_1354.2
+# •	Transshipments made destination country meaningless… but we know the 
+#    container was in Australia for sampling
+# •	Assume latest arrival date is associated with collection date 
+# •	SWEEP method had sample ids that corresponded with different 
+#    containers for other methods (VAC and UNDERFLOOR VAC), so added _s to all
+#    SWEEP samples (these were not used for any genetic data) - REMOVED SWEEP 
+#     data after discussing with Alejandro
+# •	Used Furui for khapra beetle data to join with other species-specific data
+#    (removed Olson columns). 
+# •	Filtered metabarcoding data to include Percent Identity >= 90% and added 
+#    a column called high_priority referring to Australia's insect species of 
+#    high pest risk.
+
 
 # load --------------------------------------------------------------------
 source('./code/libraries.R')
@@ -79,7 +90,7 @@ collection %>% names
 table(collection$visual_contents)
 table(duplicated(collection$sample_id))
 table(collection$sample_method)
-view(collection)
+
 ## history -----------------------------------------------------------------
 
 history <- ship_simple %>% 
@@ -114,7 +125,7 @@ history <- ship_simple %>%
   relocate(khapra_risk, hitchhiker_risk, 
            .after = company_goods_description)
 
-history[1:1000,] %>% View
+history %>% head
 history$container_id %>% unique %>% length
 table(history$data_origin)
 
