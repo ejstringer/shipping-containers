@@ -43,7 +43,7 @@ Original data files can be found in the folder labelled *Metabarcoding publicati
 
 ## Curated data
 
-![Fig 1. diagram of curated data](./data/db_diagram.png)
+![](./data/db_diagram.png)
 
 ## Code
 
@@ -61,7 +61,7 @@ File 2:
 File 3:
 
 * File name: curate_datasets.R
-* Purpose: To curate and simplify the large amounts of data (see Fig 1)
+* Purpose: To curate and simplify the large amounts of data (see above diagram)
 
 
 

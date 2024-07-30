@@ -33,7 +33,7 @@ spp %>% names
 
 priority <- read.csv('./data/high_priority_insect_species.csv')
 
-quality <- read.csv('./data/C05246_Master metadata_sampledata.csv')
+quality <- read.csv('./data/C05246_metadata_sampledata.csv')
 
 # ship --------------------------------------------------------------------
 
@@ -140,6 +140,7 @@ ship_simple %>% filter(Identification.type == '') %>% head
 
 visual <- ship_simple[,c(1,4, 7, 31:53)] %>% 
   filter(Identification.type != '') %>% 
+  mutate(Species = ifelse(Species == '', Species, paste(Genus, Species))) %>% 
   setNames(str_trim(tolower(gsub("[[:punct:]]+"," ",names(.))))) %>% 
   setNames(gsub(' ', '_', names(.))) %>% 
   setNames(gsub('_animal', '', names(.))) %>% 
@@ -160,7 +161,8 @@ names(visual_simple) <- names(visual)
 sapply(visual_simple, ncol)
 sapply(visual_simple, nrow)
 lapply(visual_simple, names)
-
+visual_simple$ANIMAL$species[visual_simple$ANIMAL$species != ''] %>% sort
+visual_simple$SEED$species[visual_simple$SEED$species != ''] %>% sort
 
 # metabarcoding -----------------------------------------------------------
 
@@ -219,11 +221,12 @@ spp_specific <- do.call('bind_rows', spp_renamed) %>%
                               'Brown marmorated stink bug',
                               common_name),
          common_name = gsub('_', ' ', tolower(common_name)),
-         sample_id = sub('C05246_', '', sample_id),
+         sample_id = sub('C05246_', 'X', sample_id),
          sample_id = sub('\\.1','', sample_id)) %>%
   filter(!grepl('\\.2', sample_id)) %>% 
   select(-method_collection, -container_id) %>% 
   relocate(sample_id, lab_code, common_name, species) %>% 
+  setNames(gsub('\\.', '_', names(.))) %>%
   unique()
 
 spp_specific %>% names
@@ -243,7 +246,6 @@ write.csv(visual_simple$CONTAMINATION,
           file ='./output/C05246_visual_contamination.csv', row.names = F)
 write.csv(visual_simple$SEED,
           file ='./output/C05246_visual_seed.csv', row.names = F)
-
 write.csv(spp_specific,
           file ='./output/C05246_genetic_species_specific.csv', row.names = F)
 write.csv(dna_simple,
