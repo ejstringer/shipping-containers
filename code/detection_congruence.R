@@ -135,6 +135,7 @@ detection %>% left_join(congruence) %>%
   select(-containers, -species) %>% 
   mutate(prop_detection = detections/specific,
          prop_congruence = congruence/detections) %>% 
-  arrange(data)
+  arrange(data) %>% 
+  relocate(common_name, data, prop_congruence)
 
 spp_detected %>% filter(container_id %in% vis_detected$container_id) %>% arrange(common_name)
