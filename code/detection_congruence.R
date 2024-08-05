@@ -20,8 +20,11 @@ animal <- read.csv('./output/C05246_visual_animal.csv') %>%
   filter(sample_method != 'VAC UNDERFLOOR') %>% 
   select(-sample_id, -sample_method)
 
-rna <- read.csv('./output/C05246_genetic_metabarcoding_rna.csv')
-dna <- read.csv('./output/C05246_genetic_metabarcoding_dna.csv')
+rna <- read.csv('./output/C05246_genetic_metabarcoding_rna.csv')%>% 
+  filter(PI > 0.99)
+dna <- read.csv('./output/C05246_genetic_metabarcoding_dna.csv') %>% 
+  filter(PI > 0.99)
+
 
 
 # visual detections -------------------------------------------------------
@@ -89,9 +92,15 @@ spp_detected <- spp %>%
   group_by(container_id, common_name, species) %>% 
   summarise_if(is.double, mean) %>% 
   ungroup() %>% 
-  mutate(detected = select(., eDNA_rep_1_Ct:eRNA_rep_3_Ct) %>% 
+  mutate(specific_all = select(., eDNA_rep_1_Ct:eRNA_rep_3_Ct) %>% 
            rowSums(na.rm = TRUE),
-         detected_specific = detected > 0) %>% 
+         specific_DNA = select(., eDNA_rep_1_Ct:eDNA_rep_3_Ct) %>% 
+           rowSums(na.rm = TRUE),
+         specific_RNA = select(., eRNA_rep_1_Ct:eRNA_rep_3_Ct) %>% 
+           rowSums(na.rm = TRUE),
+         detected_specDNA = specific_DNA > 0,
+         detected_specRNA = specific_RNA > 0,
+         detected_specific = specific_all > 0) %>% 
   left_join(vis_detected) %>% 
   arrange(desc(detected_visual),
           desc(specimens_visual)) %>%
@@ -101,19 +110,20 @@ spp_detected <- spp %>%
   glimpse
  spp_detected$container_id %>% table %>% table
  
-tapply(spp_detected$detected_specific, 
+tapply(spp_detected$detected_specDNA, 
        spp_detected$common_name, sum)
 
 # detections
 detection <- spp_detected %>% 
   group_by(common_name, species) %>% 
-  summarise(specific = sum(detected_specific),
+  summarise(specd = sum(detected_specDNA),
+            specr = sum(detected_specRNA),
             dna = sum(detected_dna, na.rm = T),
             rna = sum(detected_rna, na.rm = T),
              visual = sum(detected_visual, na.rm = T),
             containers = n()) %>% 
-  arrange(desc(specific)) %>% 
-  pivot_longer(cols = dna:visual, names_to = 'data', values_to = 'detections')
+  arrange(desc(specd)) %>% 
+  pivot_longer(cols = specd:visual, names_to = 'data', values_to = 'detections')
 
 # congruence
 congruence <- spp_detected %>% 
@@ -132,10 +142,78 @@ congruence <- spp_detected %>%
   pivot_longer(cols = dna:visual, names_to = 'data', values_to = 'congruence')
 
 detection %>% left_join(congruence) %>% 
-  select(-containers, -species) %>% 
+  select(-containers, species) %>% 
   mutate(prop_detection = detections/specific,
          prop_congruence = congruence/detections) %>% 
-  arrange(data) %>% 
-  relocate(common_name, data, prop_congruence)
+  arrange(species, prop_detection) %>% 
+  relocate(common_name, species, data, prop_congruence) %>% 
+  mutate_if(is.numeric, round, 2)
 
-spp_detected %>% filter(container_id %in% vis_detected$container_id) %>% arrange(common_name)
+
+
+# venn diagram ------------------------------------------------------------
+
+library(VennDiagram)
+
+
+containersSPP <- spp_detected$container_id[spp_detected$detected_specific]
+containersDNA <- spp_detected$container_id[spp_detected$detected_dna &
+                                             complete.cases(spp_detected$detected_dna)] 
+
+containersRNA <- spp_detected$container_id[spp_detected$detected_rna &
+                                             complete.cases(spp_detected$detected_rna)]
+
+containersVIS <- spp_detected$container_id[spp_detected$detected_visual &
+                                             complete.cases(spp_detected$detected_visual)]
+
+containersSPP_dna <- spp_detected$container_id[spp_detected$detected_specDNA]
+containersSPP_rna <- spp_detected$container_id[spp_detected$detected_specRNA]
+
+mycol <- c('lightblue', 'lightgreen', 'pink', 'gold')
+
+venn.diagram(
+  x = list(containersSPP_dna, containersSPP_rna,
+           containersDNA, containersRNA),
+  category.names = c("sppDNA" , "sppRNA", 'DNA', 'RNA'),
+  filename = './figures/venn/spp_meta.png',
+  output=TRUE,
+  disable.logging = T,
+  imagetype="png" ,
+  # height = 480 , 
+  # width = 480 , 
+  # resolution = 300,
+  col = mycol,
+  fill = sapply(mycol, alpha, alpha = 0.3)
+  
+)
+
+
+
+venn.diagram(
+  x = list(containersSPP, unique(c(containersDNA, containersRNA)),
+           containersVIS),
+  category.names = c("Spp specific" , "Metabarcoding", 'Visual'),
+  filename = './figures/venn/spp_meta_vis_venn_diagramm.png',
+  output=TRUE,
+  disable.logging = T,
+  imagetype="png" ,
+   height = 880 , 
+   width = 880 , 
+   resolution = 300,
+  compression = "lzw",
+  cat.fontface = 'bold',
+  lwd = 1,
+  col=c("#440154ff", '#21908dff', '#FF6347'),
+  fill = c(alpha("#440154ff",0.3), alpha('#21908dff',0.3), alpha('#FF6347',0.3)),
+  cex = 0.5,
+  fontfamily = "sans",
+  cat.cex = 0.6,
+  cat.default.pos = "outer",
+  cat.pos = c(-27, 27, 120),
+  cat.dist = c(0.065, 0.065, 0.095),
+  cat.fontfamily = "sans",
+  cat.col = c("#440154ff", '#21908dff', '#FF6347'),
+  rotation = 1
+)
+
+

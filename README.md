@@ -63,6 +63,15 @@ File 3:
 * File name: curate_datasets.R
 * Purpose: To curate and simplify the large amounts of data (see above diagram)
 
+File 4:
 
+* File name: detection_congruence.R
+* Purpose: Congruence between species specific detections vs visual and metabarcoding
+
+
+File 5:
+
+* File name: specific_cq_exploration.R
+* Purpose: Exploring species specific eDNA and eRNA detections to cq values, seed identified in container, and species
 
 
