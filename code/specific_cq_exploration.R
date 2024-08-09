@@ -14,6 +14,9 @@ spp <- read.csv('./output/C05246_collection.csv') %>%
   left_join(arrival) %>% 
   left_join(specific) %>% 
   filter(sample_method != 'VAC UNDERFLOOR') %>% 
+  filter(!(common_name == 'brown marmorated stink bug' & 
+           eRNA_rep_1_Ct > 0 & eRNA_rep_2_Ct == 0 &
+           eDNA_rep_1_Ct == 0)) %>% 
   mutate(days_since = ymd(collection_date)- ymd(arrival_date)) %>% 
   relocate(container_id) %>% 
   relocate(days_since, .after = collection_date) %>% 
@@ -25,32 +28,79 @@ spp <- read.csv('./output/C05246_collection.csv') %>%
 spp %>% names
 spp %>% glimpse()
 
-sppDNA <- filter(spp, #molecule == 'eDNA',
-                 cq > 0, 
+sppDNA <- filter(spp,
                  days_since > 0) %>% 
   mutate(seed = ifelse(grepl('SEED', visual_contents),
                        'Seed', 'No seed'))
+
+
+lm_eqn <- function(x, y){
+  m <- lm(y ~ x);
+  # eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(R)^2~"="~r2, 
+  #                  list(a = format(unname(coef(m)[1]), digits = 2),
+  #                       b = format(unname(coef(m)[2]), digits = 2),
+  #                       r2 = format(summary(m)$r.squared, digits = 3)))
+  eq <- substitute(italic(R)^2~"="~r2, 
+                   list(r2 = format(summary(m)$r.squared, digits = 3)))
+  as.character(as.expression(eq));
+}
+
+
 sppDNA %>% names
 sppDNA %>% nrow
-sppDNA %>% 
-  ggplot(aes(days_since, cq, colour = common_name))+
+
+df1 <- sppDNA %>% 
+  filter(cq > 0, days_since <40)
+
+df1$x <- as.numeric(df1$days_since)
+df1$y <- df1$cq
+
+df1 %>% 
+  group_by(common_name, molecule) %>% 
+  mutate(text = lm_eqn(x,y)) %>% 
+  ungroup() %>% 
+  ggplot( aes(x, cq, colour = common_name))+
   geom_point(alpha = 0.7)+
   theme_bw()+
-  facet_grid(~molecule)
-lmer(cq ~ days_since + molecule +(1|sample_id),data = sppDNA) %>% 
+  facet_grid(molecule~common_name) +
+  geom_text(x = 10, y = 16.5, aes(label = text), parse = TRUE,
+            size = 3,
+            colour = 'black')+
+  geom_smooth(method = 'lm', se = T, colour = 'black')+
+  xlab('days since arrival')+
+  ylab('Cq')+
+  theme(legend.position = 'none') -> p1;p1
+
+ggsave('./figures/days_since_arrival.png', p1, units = 'cm',
+       height = 10, width = 24)
+
+
+lmer(cq ~ days_since + molecule +(1|sample_id),
+     data = filter(sppDNA, cq>0)) %>% 
   summary
 
 sppDNA %>% 
+  filter(cq > 0) %>% 
   ggplot(aes(common_name, cq, fill = molecule))+
   geom_boxplot()+
   theme_bw()
 
 sppDNA %>% 
-  ggplot(aes(seed, cq, fill = seed))+
-  geom_boxplot()+
+  pivot_wider(names_from = molecule, values_from = cq) %>% 
+  mutate(visual = case_when(
+    container_id == "TEMU3100647" ~ "TEMU3100647",
+    container_id == "TGBU7753399" ~ "TGBU7753399",
+    !container_id %in% c("TEMU3100647", "TGBU7753399") ~ 'other'
+  )) %>% 
+  filter(eDNA > 0 & eRNA > 0) %>% 
+  ggplot(aes(eDNA, eRNA, colour = visual))+
+  geom_smooth(method = 'lm', se = T, aes(group = species))+
+  geom_point(size = 2, alpha = 0.7)+
+  geom_abline(intercept = 0, slope = 1,
+              lty = 1, size = 1, colour = 'green',
+              alpha = 0.5)+
   theme_bw()+
-  scale_fill_manual(values = c('lightblue', 'lightgreen'))+
-  facet_grid(molecule~common_name)
+  #scale_colour_manual(values = c('blue', 'green'))
+  facet_grid(~common_name, scale = 'free_y')
 
-boxplot(sppDNA$cq)
 

@@ -10,7 +10,10 @@ collection <- read.csv('./output/C05246_collection.csv')
 spp <- read.csv('./output/C05246_genetic_species_specific.csv') %>% 
   left_join(collection[,c('sample_id', 'container_id', 'sample_method')]) %>% 
   relocate(container_id) %>% 
-  filter(sample_method != 'VAC UNDERFLOOR')
+  filter(sample_method != 'VAC UNDERFLOOR') %>% 
+  filter(!(common_name == 'brown marmorated stink bug' & 
+             eRNA_rep_1_Ct > 0 & eRNA_rep_2_Ct == 0 &
+             eDNA_rep_1_Ct == 0))
 
 collection <- collection %>% filter(sample_method != 'VAC UNDERFLOOR')
 
