@@ -1,4 +1,4 @@
-
+source('./code/libraries.R')
 history <- read.csv('./output/C05246_container_history.csv') %>% 
   filter(sampled) 
 
@@ -7,6 +7,8 @@ history <- read.csv('./output/C05246_container_history.csv') %>%
 container <- read.csv('./data/shipping_meta/Approach rate trial container data summary.csv') 
 container_trial <- read.csv('./data/shipping_meta/Approach rate trial container data summary.csv') 
 
+
+collection <- read.csv('./output/C05246_collection.csv')
 arrival <- read.csv('./output/C05246_container_history.csv') %>% 
   filter(sampled) %>% select(container_id, arrival_date) 
 
@@ -291,6 +293,25 @@ table(test$cqRNA, test$repRNA)
 # NEW data structure ------------------------------------------------------
 spp[17:22]
 
+daysminus <- spp %>% 
+  group_by(container_id) %>% 
+  summarise(days_since = mean(days_since)) %>% 
+  filter(days_since<0) 
+
+xx  <- left_join(collection[,c('container_id', 'collection_date')], 
+                 history) %>% 
+  filter(container_id %in% daysminus$container_id) %>% 
+  relocate(collection_date, .after = arrival_date)
+
+adjustedDaySince <- xx %>% filter(!sampled) %>% 
+  arrange(container_id, desc(arrival_date)) %>% 
+  mutate(sampled = ifelse(duplicated(container_id), F, T),
+         days_since2 = as.numeric(ymd(collection_date)- ymd(arrival_date))) %>% 
+  relocate(days_since2, .after = arrival_date) %>% 
+  filter(sampled) %>% 
+  select(container_id, days_since2)
+
+
 ## spp ---------------
 spp <- read.csv('./output/C05246_collection.csv') %>% 
   left_join(arrival) %>% 
@@ -321,7 +342,7 @@ spp <- read.csv('./output/C05246_collection.csv') %>%
   
 
 spp %>% names
-spp %>% view
+#spp %>% view
 
 ## reps -------
 repcqDNA <- spp %>%
@@ -419,7 +440,7 @@ container <- container_trial %>%
                                  paste0(Container.size, 'ft')),
          Container.owner = str_split(Container.owner, 
                                      pattern = ' ', simplify = T)[,1]) %>% 
-  select(-Date.of.manufacture, -Container.grade) %>% 
+  select(-Date.of.manufacture) %>% 
   setNames(tolower(gsub('\\.', '_', names(.)))) %>% 
   rename(container_id = container_number) 
 container
@@ -435,9 +456,11 @@ case_file <- reps_DNA %>%
   select(-container_id) %>% 
   mutate(eRNA = ifelse(eRNA == 'zero', 'absent', 'present'))
 
+
 write.table(case_file, './output/casefiles/casefile_reps_khapra.txt', 
             sep = '\t',  row.names = F)
-
+# // ~->[CASE-1]->~
+# figures ------------
 case_file %>% 
   group_by(risk_country) %>% 
   summarise(kh = sum(khapra == 'present')) %>% 
@@ -503,7 +526,19 @@ df2<-repcqDNA %>%
   
 
 case_file %>% 
-  filter(container_age=='10yrs&older',
-         container_size== '20ft',
-         risk_country == 'no', 
-         goods == 'timber')
+  filter(#container_age=='10yrs&under',
+         container_size== '40ft',
+         risk_country == 'yes', 
+         goods == 'food')
+
+# visual probabilities
+present <- read.csv('./data/containers_khapra_present.csv')%>% 
+  separate(Unique.Sample.Identifier, into = c('container', 'sample', 'no'),
+           sep = '_') %>% 
+  mutate(sample_id = paste0('X', sample,'_', no))
+str_trim(unique(present$Container_id))
+
+present$sample_id %>% unique %>% length
+[(spp$sample_id %in% present$sample_id),] %>% View
+
+reps_DNA[reps_DNA$container_id %in% vis_detected$container_id[vis_detected$detected_visual],]
