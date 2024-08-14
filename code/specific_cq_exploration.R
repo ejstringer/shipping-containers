@@ -60,19 +60,23 @@ df1 %>%
   mutate(text = lm_eqn(x,y)) %>% 
   ungroup() %>% 
   ggplot( aes(x, cq, colour = common_name))+
-  geom_point(alpha = 0.7)+
+  geom_point(alpha = 0.7, colour = 'salmon')+
   theme_bw()+
-  facet_grid(molecule~common_name) +
+  facet_grid(common_name~molecule) +
   geom_text(x = 10, y = 16.5, aes(label = text), parse = TRUE,
             size = 3,
             colour = 'black')+
   geom_smooth(method = 'lm', se = T, colour = 'black')+
   xlab('days since arrival')+
   ylab('Cq')+
-  theme(legend.position = 'none') -> p1;p1
+  theme(legend.position = 'none',
+        strip.background = element_rect(fill = 'grey90', 
+                                        colour = 'grey90'),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()) -> p1
 
-ggsave('./figures/days_since_arrival.png', p1, units = 'cm',
-       height = 10, width = 24)
+ggsave('./figures/days_since_arrival_style.png', p1, units = 'cm',
+       height = 24, width = 14)
 
 
 lmer(cq ~ days_since + molecule +(1|sample_id),

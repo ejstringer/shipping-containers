@@ -617,13 +617,20 @@ model_data %>%
             position = position_dodge(width = 0.9),
             size = 3) +
   ylab("Frequency") +
-  xlab("Cargo") +
-  scale_fill_manual(values = c("navajowhite1","palegreen3"),
+  xlab("Transporting cargo") +
+  scale_fill_manual(values = c("lightblue",'lightblue4'),
                     name = "High Risk Country") +
   theme_light()+
-  theme(legend.position = c(0.75,0.815),
+  ggtitle('Port of Brisbane')+
+  theme(legend.position = c(0.74,0.815),
+        plot.title = element_text(hjust = 0.5), 
         panel.grid.major.x = element_blank(),
-        legend.background = element_rect(colour = 'grey'))
+        legend.background = element_rect(colour = 'grey'))-> p1;p1
+
+ggsave('./figures/frequency_goods_country.png',p1,
+       units = 'cm', width = 9,
+       height = 9)
+
 
 model_data %>% 
   group_by(eDNA_rank) %>% 
@@ -635,7 +642,7 @@ model_data %>%
             position = position_dodge(width = 0.9),
             size = 3) +
   ylab("Frequency") +
-  xlab("") +
+  xlab("DNA cq level") +
   scale_fill_manual(values = c('grey',
                                "palegreen3",
                                "navajowhite1",
@@ -644,8 +651,11 @@ model_data %>%
   theme_light()+
   theme(legend.position = 'none', #c(0.85,0.73),
         panel.grid.major.x = element_blank(),
-        legend.background = element_rect(colour = 'grey'))
+        legend.background = element_rect(colour = 'grey'))-> p2;p2
 
+ggsave('./figures/frequency_DNAcq_levels.png',p2,
+       units = 'cm', width = 9,
+       height = 8)
 
 model_data %>% 
   group_by(present) %>% 
