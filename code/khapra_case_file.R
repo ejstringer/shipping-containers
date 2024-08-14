@@ -291,7 +291,7 @@ table(test$cqRNA, test$repRNA)
 
 
 # NEW data structure ------------------------------------------------------
-spp[17:22]
+
 
 daysminus <- spp %>% 
   group_by(container_id) %>% 
@@ -338,7 +338,9 @@ spp <- read.csv('./output/C05246_collection.csv') %>%
   relocate(days_since2, .after = days_since) %>% 
   mutate(days_since = ifelse(days_since < 0,
                              days_since2, days_since)) %>% 
-  select(-days_since2) 
+  select(-days_since2) %>% 
+  mutate(DNArep1 = ifelse(DNArep1 == '', NA, 
+                          DNArep1))
   
 
 spp %>% names
@@ -363,16 +365,16 @@ reps_DNA <- repcqDNA %>% left_join(repcqRNA) %>%
     days_since < 8 ~ '7days',
     days_since >= 8 ~ '8days'
     ),
-    eDNA = case_when(
+    eDNA_rank = case_when(
       eDNA == 0 ~ 'zero',
       eDNA < 35 ~ 'high',
       eDNA < 40 ~ 'med',
       # cqDNA < 40 ~ 'med-low',
       eDNA >= 40 ~ 'low'
     ),
-    eRNA = case_when(
+    eRNA_rank = case_when(
       eRNA == 0 ~ 'zero',
-      eRNA < 35 ~ 'high',
+      eRNA < 30 ~ 'high',
       eRNA < 40 ~ 'med',
       # cqRNA < 40 ~ 'med-low',
       eRNA >= 40 ~ 'low'
@@ -414,8 +416,10 @@ goods_sum <- history %>%
 
   khapra <- spp %>% 
   mutate(khapra = rowSums(apply(spp[3:8], 2, function(x) x!=0))>0,
-         khapra = ifelse(khapra, 'present', 'absent')) %>% 
-  select(container_id, khapra)
+         khapra = ifelse(khapra, 'present', 'absent'),
+         stillkhapra = rowSums(apply(spp[6:8], 2, function(x) x!=0))>0,
+         stillkhapra = ifelse(stillkhapra, 'present', 'absent')) %>% 
+  select(container_id, khapra, stillkhapra)
 
 ## container --------
 container <- container_trial %>% 
@@ -452,10 +456,11 @@ case_file <- reps_DNA %>%
   left_join(container) %>% 
   mutate_if(is.factor, as.character) %>% 
   as.data.frame %>% 
-  replace(is.na(.), values = '*') %>% 
-  select(-container_id) %>% 
-  mutate(eRNA = ifelse(eRNA == 'zero', 'absent', 'present'))
-
+  replace(is.na(.), values = '*') %>%
+  filter(container_id != 'TCNU1629061') %>% 
+  #mutate(eRNA = ifelse(eRNA == 'zero', 'absent', 'present')) %>%
+  select(-container_id) 
+names(case_file)  
 
 write.table(case_file, './output/casefiles/casefile_reps_khapra.txt', 
             sep = '\t',  row.names = F)
@@ -470,6 +475,7 @@ case_file %>%
   geom_bar(stat = 'identity') +
   theme_classic()
   
+table(case_file$eRNA, case_file$eDNA)
 
   
 df3<- repcqDNA %>% 
@@ -531,14 +537,185 @@ case_file %>%
          risk_country == 'yes', 
          goods == 'food')
 
-# visual probabilities
-present <- read.csv('./data/containers_khapra_present.csv')%>% 
-  separate(Unique.Sample.Identifier, into = c('container', 'sample', 'no'),
-           sep = '_') %>% 
-  mutate(sample_id = paste0('X', sample,'_', no))
-str_trim(unique(present$Container_id))
+# model data ------------
+model_data <- reps_DNA %>% 
+  left_join(khapra) %>% 
+  left_join(goods_sum) %>% 
+  left_join(container) %>% 
+  mutate_if(is.factor, as.character) %>% 
+  as.data.frame %>% 
+  filter(container_id != 'TCNU1629061') %>% 
+  #mutate(eRNA = ifelse(eRNA == 'zero', 'absent', 'present')) %>%
+  mutate(eDNA = as.numeric(eDNA),
+         eRNA = as.numeric(eRNA),
+         goods = factor(goods, levels = c("other_goods", "timber", "food")),
+         eDNA_rank = factor(eDNA_rank,
+                            levels = c("zero", "low",  "med",  "high")),
+         eDNA_binary = ifelse(eDNA >0, 1, 0),
+         present = ifelse(stillkhapra == 'absent', 0, 1),
+         goods = ifelse(goods == 'other_goods', 
+                        'other', 'timber/food'),
+         eDNA_rank_no = as.numeric(eDNA_rank)-1) %>% 
+  filter(complete.cases(goods))
+names(model_data)  
 
-present$sample_id %>% unique %>% length
-[(spp$sample_id %in% present$sample_id),] %>% View
 
-reps_DNA[reps_DNA$container_id %in% vis_detected$container_id[vis_detected$detected_visual],]
+ggplot(model_data %>% filter(complete.cases(goods)),
+       aes(x = eDNA_rank_no,
+           fill = goods))+
+  geom_histogram(bins =  4, colour = 'black')+
+  theme_classic()+
+  facet_grid(goods~risk_country,
+             scale = 'free')
+
+
+m <- glm(eDNA_binary ~  goods+risk_country, data = model_data, family = binomial)
+summary(m, corr = FALSE)
+
+m <- glm(present ~  eDNA_rank_no, data = model_data, family = binomial)
+summary(m, corr = FALSE)
+
+m <- glm(present ~ eDNA_rank_no + risk_country * goods, data = model_data, family = binomial)
+summary(m, corr = FALSE)
+
+ggplot(model_data,
+       aes(goods, fill = goods))+
+  geom_bar(aes(y = (..count..)/sum(..count..)),
+           colour = 'black')+
+  ylab('frequency')+
+  theme_classic()
+model_data %>% 
+ggplot(aes(risk_country, fill = risk_country))+
+  geom_bar(colour = 'black')+
+  ylab('frequency')+
+  theme_classic()+
+  theme(legend.position = 'none')+
+  facet_grid(~goods)
+
+plogis(-12.42)
+
+ggplot(filter(model_data, eDNA >0,
+              complete.cases(goods)),
+       aes(x = eDNA, 
+           colour = risk_country))+
+  geom_histogram()+
+   theme_bw()+
+  facet_grid(risk_country~goods)+
+  theme(legend.position = 'right')
+
+
+# barplots ----------------------------------------------------------------
+
+
+model_data %>% 
+  group_by(goods, risk_country) %>% 
+  summarise(value = n()/nrow(.)) %>% 
+  ggplot(aes(y = value,
+             fill = risk_country, x = goods))+
+  geom_col(position = "dodge") +
+  geom_text(aes(label = round(value,3)), vjust = -0.2,
+            position = position_dodge(width = 0.9),
+            size = 3) +
+  ylab("Frequency") +
+  xlab("Cargo") +
+  scale_fill_manual(values = c("navajowhite1","palegreen3"),
+                    name = "High Risk Country") +
+  theme_light()+
+  theme(legend.position = c(0.75,0.815),
+        panel.grid.major.x = element_blank(),
+        legend.background = element_rect(colour = 'grey'))
+
+model_data %>% 
+  group_by(eDNA_rank) %>% 
+  summarise(value = n()/nrow(.)) %>% 
+  ggplot(aes(y = value,
+             x = eDNA_rank, fill = eDNA_rank))+
+  geom_col(position = "dodge") +
+  geom_text(aes(label = round(value,3)), vjust = -0.2,
+            position = position_dodge(width = 0.9),
+            size = 3) +
+  ylab("Frequency") +
+  xlab("") +
+  scale_fill_manual(values = c('grey',
+                               "palegreen3",
+                               "navajowhite1",
+                               'salmon1'),
+                    name = "DNA cq") +
+  theme_light()+
+  theme(legend.position = 'none', #c(0.85,0.73),
+        panel.grid.major.x = element_blank(),
+        legend.background = element_rect(colour = 'grey'))
+
+
+model_data %>% 
+  group_by(present) %>% 
+  summarise(value = n()/nrow(.)) %>% 
+  ggplot(aes(y = value,
+             x = present, fill = factor(present)))+
+  geom_col(position = "dodge") +
+  geom_text(aes(label = round(value,3)), vjust = -0.2,
+            position = position_dodge(width = 0.9),
+            size = 3) +
+  ylab("Frequency") +
+  xlab("") +
+  scale_fill_manual(values = c('grey',
+                               "palegreen3",
+                               "navajowhite1",
+                               'salmon1'),
+                    name = "DNA cq") +
+  theme_light()+
+  theme(legend.position = 'none', #c(0.85,0.73),
+        panel.grid.major.x = element_blank(),
+        legend.background = element_rect(colour = 'grey'))
+
+
+# dragon figure -----------------------------------------------------------
+m2 <- glm(present ~ eDNA_rank_no + risk_country * goods,
+          data = model_data, family = 'binomial')
+summary(m2, corr = FALSE)
+
+gedplot_model <- data.frame(eDNA_rank_no = seq(0,3.49,0.01),
+                            risk_country = rep(c("yes", 'no'), each = 350*2),
+                            goods = rep(c('other','timber/food'), each = 350)
+) %>%   #gedplot %>% 
+  # mutate(`Trapping grid` = sub('side', '', paste(site, grid)),
+  #        `Survey location` = sub('side', '', paste(site, grid))) %>% 
+  mutate(present = predict(m2, newdata=data.frame(eDNA_rank_no, 
+                                                    risk_country, 
+                                                    goods),
+                             type="response"))
+myCol <- c('grey50',
+           "palegreen3",
+           "navajowhite1",
+           'salmon1') #viridisLite::viridis(4)[c(3,1)]#rep(c('#009503', '#65019F'), each = 1)
+
+  ggplot(model_data, 
+         aes(x = eDNA_rank_no, y = present,
+             colour = goods))+
+  geom_jitter(height = 0,#aes(shape = risk_country), 
+              colour = 'grey60', width = 0.3,
+              size = 1, alpha = 0.2)+
+  geom_line(data = gedplot_model, #size = 1,
+            aes(linetype = risk_country))+
+  scale_colour_manual(values = myCol[c(2,3)],
+                      name = 'Transporting')+
+  scale_linetype_manual(values = c(2,1,2,1),
+                        name = 'High Risk Country')+
+  theme_bw()+
+    #geom_hline(yintercept = 0.5, colour = 'red',alpha = 0.5)+
+  # guides(colour = guide_legend(override.aes = list(shape = NA,
+  #                                                  size = 2)))+
+  ylab('Detection probability')+
+  xlab('DNA cq level')+
+  theme(legend.position = c(0.20,0.65),
+        panel.grid = element_blank(),
+        axis.ticks.length = unit(0.3, units = 'cm'),
+        legend.background = element_rect(colour = 'black',),
+        legend.key.width = unit(1.2, units = 'cm'),
+        legend.key.height = unit(0.4, units = 'cm')
+  )-> pp2 ;pp2
+
+  ggsave('./figures/khapra_probability.png',
+         plot = pp2, units = 'cm', width = 14,
+         height = 9)  
+  
