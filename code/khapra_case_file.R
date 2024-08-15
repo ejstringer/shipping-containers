@@ -424,7 +424,9 @@ goods_sum <- history %>%
 ## container --------
 container <- container_trial %>% 
   select(Container.number, Container.size, Container.owner,
-         Container.grade, Date.of.manufacture) %>%
+         Container.grade, Date.of.manufacture,
+         Age.at.earliest.sample.date) %>%
+  rename(age = Age.at.earliest.sample.date) %>% 
   mutate(Container.age = dmy('08/08/2024') - dmy(Date.of.manufacture),
          Container.age = round(as.numeric(Container.age)/365.25, 2),
          Container.age = ifelse(Container.age < 10, '10yrs&under', '10yrs&older'),
@@ -554,9 +556,11 @@ model_data <- reps_DNA %>%
          eDNA_binary = ifelse(eDNA >0, 1, 0),
          present = ifelse(stillkhapra == 'absent', 0, 1),
          goods = ifelse(goods == 'other_goods', 
-                        'other', 'timber/food'),
+                        'other', 'food/timber'),
+         # container_grade = ifelse(container_grade == 'General purpose',
+         #                          'uncategorized', container_grade),
          eDNA_rank_no = as.numeric(eDNA_rank)-1) %>% 
-  filter(complete.cases(goods))
+  filter(complete.cases(goods), complete.cases(container_age))
 names(model_data)  
 
 
@@ -577,6 +581,13 @@ summary(m, corr = FALSE)
 
 m <- glm(present ~ eDNA_rank_no + risk_country * goods, data = model_data, family = binomial)
 summary(m, corr = FALSE)
+
+m <- glm(present ~ eDNA_rank_no + risk_country * goods, data = model_data, family = binomial)
+summary(m, corr = FALSE)
+
+m <- glm(present ~ age + container_grade, data = model_data, family = binomial)
+summary(m, corr = FALSE)
+
 
 ggplot(model_data,
        aes(goods, fill = goods))+
@@ -679,14 +690,74 @@ model_data %>%
         legend.background = element_rect(colour = 'grey'))
 
 
+# models Hypothesised -----------------------------------------------------
+plot(model_data$age, model_data$eDNA)
+
+full <- glm(present ~ eDNA_rank_no + goods *risk_country + container_grade + age,
+            data = model_data, family = 'binomial')
+null <- glm(present ~ eDNA_rank_no,
+          data = model_data, family = 'binomial')
+
+m3 <- glm(present ~ eDNA_rank_no + goods *risk_country +  age,
+          data = model_data, family = 'binomial')
+
+m2 <- glm(present ~ eDNA_rank_no + goods *risk_country + container_grade,
+          data = model_data, family = 'binomial')
+
+m1 <- glm(present ~ eDNA_rank_no + goods *risk_country,
+          data = model_data, family = 'binomial')
+
+m5 <- glm(present ~ eDNA_rank_no +  container_grade,
+          data = model_data, family = 'binomial')
+
+m6 <- glm(present ~ eDNA_rank_no + container_grade,
+          data = model_data, family = 'binomial')
+
+m7 <- glm(present ~ eDNA_rank_no + container_grade + goods,
+          data = model_data, family = 'binomial')
+
+m8 <- glm(present ~ eDNA_rank_no,
+          data = model_data, family = 'binomial')
+
+
+# null <- glm(present ~ 1,
+#           data = model_data, family = 'binomial')
+AIC(m1, m2)
+aictb <- AIC(m1,m2, m3, null, full)
+form <- sapply(list(m1, m2,m3, null, full),
+               function(x)
+                  as.character(formula(x))[3])
+aictb %>%
+  as.data.frame %>% 
+  mutate(delta = AIC - min(AIC),
+         formula = form,
+         model = rownames(aictb)) %>% 
+  arrange(delta) %>% 
+  relocate(model) %>% 
+  flextable() %>% 
+  autofit() %>% 
+  italic(j = 1) %>% 
+  border_remove() %>% 
+  hline(i = c(5), 
+        border = fp_border(color = "grey40", width = 3)) %>% 
+  hline(part = 'header', 
+        border = fp_border(color = "grey40", width = 2)) %>% 
+  save_as_docx(., path = './figures/model_selection.docx')
+full %>% summary
+m3 %>% summary
+glm(present ~ eDNA_rank_no + risk_country * container_grade,
+          data = model_data, family = 'binomial') %>% 
+  summary(., corr = FALSE)
 # dragon figure -----------------------------------------------------------
 m2 <- glm(present ~ eDNA_rank_no + risk_country * goods,
           data = model_data, family = 'binomial')
 summary(m2, corr = FALSE)
-
+plogis(m2$coefficients)
+flextable(data.frame(coef = names(m2$coefficients),
+                     propability = plogis(m2$coefficients)))
 gedplot_model <- data.frame(eDNA_rank_no = seq(0,3.49,0.01),
                             risk_country = rep(c("yes", 'no'), each = 350*2),
-                            goods = rep(c('other','timber/food'), each = 350)
+                            goods = rep(c('other','food/timber'), each = 350)
 ) %>%   #gedplot %>% 
   # mutate(`Trapping grid` = sub('side', '', paste(site, grid)),
   #        `Survey location` = sub('side', '', paste(site, grid))) %>% 
@@ -694,6 +765,8 @@ gedplot_model <- data.frame(eDNA_rank_no = seq(0,3.49,0.01),
                                                     risk_country, 
                                                     goods),
                              type="response"))
+summary(model_data)
+
 myCol <- c('grey50',
            "palegreen3",
            "navajowhite1",
@@ -707,7 +780,7 @@ myCol <- c('grey50',
               size = 1, alpha = 0.2)+
   geom_line(data = gedplot_model, #size = 1,
             aes(linetype = risk_country))+
-  scale_colour_manual(values = myCol[c(2,3)],
+  scale_colour_manual(values = myCol[c(3,2)],
                       name = 'Transporting')+
   scale_linetype_manual(values = c(2,1,2,1),
                         name = 'High Risk Country')+
@@ -728,4 +801,52 @@ myCol <- c('grey50',
   ggsave('./figures/khapra_probability.png',
          plot = pp2, units = 'cm', width = 14,
          height = 9)  
+ 
+  m2 <- glm(present ~ eDNA_rank_no + risk_country*goods + container_grade + age,
+            data = model_data, family = 'binomial')
+  summary(m2, corr = FALSE)
+  anova(m2)
+  
+  gedplot_model <- data.frame(age = seq(0,24.9,0.1),
+                              risk_country = 'no',
+                              goods = 'food/timber',
+                              container_grade = rep(unique(model_data$container_grade),
+                                                    each = 250*4),
+                              eDNA_rank_no = rep(0:3, each = 250)) %>% 
+    mutate(present = predict(m2, newdata=data.frame(eDNA_rank_no,
+                                                    risk_country,
+                                                    goods,
+                                                    age, 
+                                                    container_grade),
+                             type="response"))
+  dna.labs <- paste('eDNA lvl:', 0:3)
+  names(dna.labs) <- as.character(0:3)
+  ggplot(filter(model_data), 
+         aes(x = age, y = present,
+             colour = container_grade))+
+    geom_jitter(height = 0, 
+                colour = 'grey60', width = 0.3,
+                size = 1, alpha = 0.2)+
+    geom_line(data = gedplot_model)+
+    scale_colour_manual(values = myCol,
+                        name = 'Container grade')+
+    theme_bw()+
+    facet_wrap(~eDNA_rank_no, ncol = 4,
+               labeller= labeller(eDNA_rank_no = dna.labs))+
+    #geom_hline(yintercept = 0.5, colour = 'red',alpha = 0.5)+
+    # guides(colour = guide_legend(override.aes = list(shape = NA,
+    #                                                  size = 2)))+
+    ylab('Detection probability')+
+    xlab('Age of container')+
+    theme(legend.position = c(0.17,0.77),
+          panel.grid = element_blank(),
+          axis.ticks.length = unit(0.3, units = 'cm'),
+          legend.background = element_rect(colour = 'black',),
+          legend.key.width = unit(1.2, units = 'cm'),
+          legend.key.height = unit(0.4, units = 'cm')
+    )-> pp3 ;pp3
+  
+  ggsave('./figures/khapra_probability_agegrade.png',
+         plot = pp3, units = 'cm', width = 16,
+         height = 11)  
   
