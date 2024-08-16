@@ -733,7 +733,7 @@ aictb %>%
          formula = form,
          model = rownames(aictb)) %>% 
   arrange(delta) %>% 
-  relocate(model) %>% 
+  relocate(model) 
   flextable() %>% 
   autofit() %>% 
   italic(j = 1) %>% 
@@ -767,10 +767,12 @@ gedplot_model <- data.frame(eDNA_rank_no = seq(0,3.49,0.01),
                              type="response"))
 summary(model_data)
 
-myCol <- c('grey50',
-           "palegreen3",
-           "navajowhite1",
-           'salmon1') #viridisLite::viridis(4)[c(3,1)]#rep(c('#009503', '#65019F'), each = 1)
+myCol <- palette.colors(palette = "Okabe-Ito")[c(6,7,8,5)]
+#viridisLite::viridis(4) 
+          # c('grey50',
+          #  "palegreen3",
+          #  "navajowhite1",
+          #  'salmon1') #viridisLite::viridis(4)[c(3,1)]#rep(c('#009503', '#65019F'), each = 1)
 
   ggplot(model_data, 
          aes(x = eDNA_rank_no, y = present,
@@ -778,9 +780,9 @@ myCol <- c('grey50',
   geom_jitter(height = 0,#aes(shape = risk_country), 
               colour = 'grey60', width = 0.3,
               size = 1, alpha = 0.2)+
-  geom_line(data = gedplot_model, #size = 1,
+  geom_line(data = gedplot_model, size = 1,
             aes(linetype = risk_country))+
-  scale_colour_manual(values = myCol[c(3,2)],
+  scale_colour_manual(values = myCol,
                       name = 'Transporting')+
   scale_linetype_manual(values = c(2,1,2,1),
                         name = 'High Risk Country')+
@@ -827,7 +829,7 @@ myCol <- c('grey50',
     geom_jitter(height = 0, 
                 colour = 'grey60', width = 0.3,
                 size = 1, alpha = 0.2)+
-    geom_line(data = gedplot_model)+
+    geom_line(data = gedplot_model, size = 1)+
     scale_colour_manual(values = myCol,
                         name = 'Container grade')+
     theme_bw()+
