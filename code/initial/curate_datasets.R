@@ -99,7 +99,7 @@ history <- ship_simple %>%
          data_origin = ifelse(Goods.description != '' & 
                                 Shipping.company.goods.description != '',
                              'Both', data_origin)) %>% 
-  select(container_id, data_origin, Arrival.date, 
+  select(container_id, data_origin, Arrival.date, Collection.date,
          Loading.country, Origin.country,
          Goods.description, Shipping.company.goods.description,
          Goods.khapra.classification, Goods.hitchhiker.risk.classification
@@ -109,8 +109,10 @@ history <- ship_simple %>%
             .funs = list(~ ifelse(.=='Unknown', '', .))) %>% 
   filter(Arrival.date != '') %>%
   setNames(tolower(gsub("\\.","_",names(.)))) %>%
+  mutate(since = ymd(collection_date)- ymd(arrival_date)) %>% 
+  filter(since >0) %>% 
   unique() %>% 
-  group_by(container_id, arrival_date,data_origin,
+  group_by(container_id, arrival_date, data_origin,
            loading_country, origin_country, goods_description,
            goods_khapra_classification, goods_hitchhiker_risk_classification) %>% 
   summarise(company_goods_description = paste(shipping_company_goods_description,
@@ -128,7 +130,6 @@ history <- ship_simple %>%
 history %>% head
 history$container_id %>% unique %>% length
 table(history$data_origin)
-
 
 ## visual surveys ----------------------------------------------------------
 
