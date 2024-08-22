@@ -25,8 +25,8 @@ spp <- collection %>%
   left_join(specific) %>% 
   relocate(container_id) %>% 
   select(-visual_lab) %>% 
- # filter(sample_method != 'VAC UNDERFLOOR') %>% 
- # filter(!sample_id %in% c('X20210721_1510', 'X20210511_0088')) %>% 
+  filter(sample_method != 'VAC UNDERFLOOR') %>% 
+  filter(!sample_id %in% c('X20210721_1510', 'X20210511_0088')) %>% 
   mutate(across(eRNA_rep_1_Ct,
                 ~ifelse((common_name == 'brown marmorated stink bug' &
                             eRNA_rep_1_Ct > 0 & eRNA_rep_2_Ct == 0 &
@@ -45,7 +45,14 @@ rna <- read.csv('./output/C05246_genetic_metabarcoding_rna.csv')%>%
 dna <- read.csv('./output/C05246_genetic_metabarcoding_dna.csv') %>% 
   filter(PI > 0.99)
 
-animal <- read.csv('./output/C05246_visual_animal.csv') %>% 
+seed <- read.csv('./output/C05246_visual_seed.csv') %>% 
+  left_join(collection[,c('sample_id', 'container_id', 'sample_method')]) %>% 
+  relocate(container_id) %>% 
+  filter(sample_method != 'VAC UNDERFLOOR') %>% 
+  select(-sample_id, -sample_method)
+
+
+contam <- read.csv('./output/C05246_visual_contamination.csv') %>% 
   left_join(collection[,c('sample_id', 'container_id', 'sample_method')]) %>% 
   relocate(container_id) %>% 
   filter(sample_method != 'VAC UNDERFLOOR') %>% 
@@ -61,6 +68,8 @@ spp5 <- data.frame(species = unique(spp$species)) %>%
 ###########################################################################-
 #           congruence                                                  ----
 ###########################################################################-
+
+
 
 ## metabarcoding -----------------------------------------------------------
 
@@ -139,10 +148,17 @@ pest_detection <- specific_detection %>%
 
   pest_detection %>% 
   ggplot(aes(pests_sppDNA, pests_metaDNA, 
-                             colour = factor(pests_sppRNA)))+
-    geom_jitter(aes(size = factor(pests_sppRNA)), alpha = 0.5)+
-    theme_classic()+
-    scale_x_continuous(breaks = 0:4)
+                             colour = factor(pests_meta5DNA)))+
+    geom_jitter(size = 2.5,alpha = 0.7, width = 0.25, height = 0.25)+
+    theme_bw()
+
+
+pest_detection %>% 
+  ggplot(aes(pests_sppDNA, pests_sppRNA, 
+             colour = factor(pests_metaRNA)))+
+  geom_jitter(size = 2.5,alpha = 0.6, width = 0.25, height = 0.25)+
+  theme_bw()
+  
 
 pest_detection %>% 
   ggplot(aes(factor(pests_sppDNA), pests_meta5DNA, 
@@ -160,9 +176,74 @@ write.csv(pest_detection, './output/pest_detection_methods.csv', row.names = F)
 #           container variables                                         ----
 ###########################################################################-
 
+## seeds -------------------------------------------------------------------
+
+seedcat<- seed %>% 
+  select(container_id, seed_category) %>%
+  unique() %>% 
+  group_by(container_id) %>% 
+  summarise(category = paste(seed_category, collapse = '-')) %>% 
+  mutate(category = sub('-Other', '', category),
+         category = sub('Other-', '', category),
+         category = ifelse(category == 'Other', 'other seed', 'pulse/cereal')) %>% 
+  mutate_all(as.factor) %>% 
+  rename(seed = category)
+seedcat$container_id %>% duplicated %>% table
+seedcat %>% summary
+
+## contamination ----------
+contam %>% head
+contam %>% mutate_all(factor) %>% summary
+
+str_replace_all(contam$matrix_type, "[^[:alnum:]]", "")
+contam %>% 
+  select(container_id, matrix_type) %>%
+  unique() %>% 
+  mutate(matrix_type= str_replace_all(matrix_type, "[^[:alnum:]]", " "),
+         category = ifelse(grepl('ood', matrix_type)|grepl('imber', matrix_type), 
+                           'wood', 'other'),
+         category = ifelse(grepl('oils', matrix_type), 'soil', category)) %>% 
+  
+  select(-matrix_type) %>% 
+  unique %>% 
+  group_by(container_id) %>% 
+  summarise(category = paste(category, collapse = '-')) %>% 
+  separate(category, into = paste0('a', 1:3), sep = '-') %>% 
+  rowwise() %>% 
+  mutate(contam = paste(sort(c(a1, a2, a3)))) 
+   mutate_all(as.factor) %>% 
+  summary
+## goods ICS -----------
+container_history$container_id %>% unique %>% length
+ics <-container_history %>% filter(data_origin != 'Shipping company')
+
+icssampled <- ics %>% arrange(container_id, arrival_date) %>% 
+  mutate(ics_sampled = ifelse(duplicated(container_id), F, T)) %>%
+  filter( ymd(arrival_date) > ymd('2020-01-01')) %>% 
+  relocate(ics_sampled) %>% 
+  filter(ics_sampled) %>% 
+  # filter(hitchhiker_risk != '') %>% 
+  mutate(ICS_goods_description = tolower(ICS_goods_description),
+         goods_risk = ifelse(grepl('food', hitchhiker_risk), 'food', 'other'),
+         goods_risk = ifelse(grepl('animal', hitchhiker_risk), 'food', goods_risk),
+         goods_risk = ifelse(grepl('kb', hitchhiker_risk), 'food', goods_risk),
+         #  goods_risk = ifelse(grepl('soil', hitchhiker_risk), 'soil', goods_risk),
+         goods_risk = ifelse(grepl('plant', hitchhiker_risk), 'plant', goods_risk),
+         goods_risk = ifelse(grepl('unknown', hitchhiker_risk), 'unknown', goods_risk),
+         goods_risk = ifelse(hitchhiker_risk == '', 'unknown', goods_risk)) %>% 
+  mutate(goods_risk = ifelse(goods_risk == 'unknown' & grepl('food',ICS_goods_description),'food', goods_risk),
+         goods_risk = ifelse(goods_risk == 'unknown' & grepl('beans',ICS_goods_description),'food', goods_risk),
+         goods_risk = ifelse(goods_risk == 'unknown' & grepl('wood',ICS_goods_description) & ICS_goods_description != 'sherwood',
+                             'plant', goods_risk),
+         goods_risk = ifelse(goods_risk == 'unknown' & grepl('paper',ICS_goods_description),
+                             'plant', goods_risk)) %>% 
+  select(container_id, goods_risk)#glimpse
+icssampled$goods_risk %>% table
+icssampled$goods_risk %>% table %>% sum -382
+icssampled$container_id %>% duplicated %>% table
+
 
 ## goods and risk country --------------------------------------------------
-
 
   goods_sum <- container_history %>%
     filter(sampled) %>% 
@@ -198,7 +279,7 @@ write.csv(pest_detection, './output/pest_detection_methods.csv', row.names = F)
 
   container <- container_trial %>% 
     select(Container.number,
-           Container.grade, 
+           Container.grade,  Container.size,
            Age.at.earliest.sample.date) %>%
     rename(age = Age.at.earliest.sample.date, 
            container_id = Container.number) %>% 
@@ -207,9 +288,14 @@ write.csv(pest_detection, './output/pest_detection_methods.csv', row.names = F)
            Container.grade = ifelse(Container.grade %in% c('Cotton quality', 
                                                            'Flexi tank',
                                                            'Unknown'),
-                                    'General purpose', Container.grade)) %>% 
+                                    'General purpose', Container.grade),
+           Container.size = factor(Container.size)) %>% 
     setNames(tolower(gsub('\\.', '_', names(.)))) %>% 
     left_join(goods_sum) %>% 
+    left_join(icssampled) %>% 
+    left_join(seedcat) %>% 
+    mutate(goods_risk = ifelse(is.na(goods_risk), 'unknown', goods_risk),
+           seed = ifelse(is.na(seed), 'no seed', as.character(seed))) %>% 
     mutate_if(is.character, as.factor)
   container %>% summary
 container$container_grade %>% table  
@@ -239,10 +325,10 @@ maxrepcq <- spp %>%
   mutate(across(eDNA_rep_1_Ct:eRNA_rep_3_Ct, ~ifelse(.x == 0, 99, .x))) %>%
   pivot_longer(eDNA_rep_1_Ct:eDNA_rep_3_Ct,
                names_to = 'rep', values_to = 'cq') %>% 
-  group_by(container_id, common_name) %>% 
-  summarise(max_cq = min(cq)) %>%
-  mutate(max_cq = ifelse(max_cq == 99, 0, max_cq)) %>% 
-  filter(max_cq > 0) %>% 
+  group_by(container_id, common_name) %>%
+  filter(cq != 99) %>% 
+  summarise(max_cq = min(cq),
+            pos_dna = n()) %>%
   rename(min_cq = max_cq)
 
 ## dna reps ----------------------------------------------------------------
@@ -256,7 +342,6 @@ DNA_cq_sample <- spp %>%
   filter(detected_DNA) %>%
   mutate(x260_280 =  as.numeric(sub(',', '', x260_280)),
          x260_230 = as.numeric(x260_230)) %>% 
-  #filter(sample_id %in% c('X20210721_1510', 'X20210511_0088')) %>% 
   select(container_id, species, common_name, 
          sample_weight, conc_2_ng_ul, x260_230, x260_280, 
          eDNA_rep_1_Ct:eDNA_rep_3_Ct) %>% 
@@ -264,6 +349,7 @@ DNA_cq_sample <- spp %>%
                names_to = 'rep', values_to = 'cq') %>% 
   mutate(rep = sub('eDNA_rep_', '', rep),
          rep = sub('_Ct','', rep)) %>% 
+  unique() %>% 
   left_join(pestrna) %>% 
   mutate(pest_rna = ifelse(pest_rna, 1, 0),
          cq_rank = case_when(
@@ -273,8 +359,8 @@ DNA_cq_sample <- spp %>%
            cq >= 40 ~ 'low')) %>% 
   left_join(maxrepcq) # min cq not zero
 
-
-
+DNA_cq_sample[16,]
+DNA_cq_sample %>% filter(container_id == 'TGHU0965042')
 ## save --------------------------------------------------------------------
 
 write.csv(DNA_cq_sample, './output/pest_dna_cq_rna.csv', row.names = F)
@@ -315,87 +401,3 @@ DNA_cq_sample %>%
 names(DNA_cq_sample)
 
 
-# models -------------------------------------------------------------------
-
-## DNA cq -------
-dna <- DNA_cq_sample %>% 
-  select(container_id,pest_rna, min_cq, common_name,
-         conc_2_ng_ul, x260_230, x260_280) %>% 
-  unique() %>% 
-  rename(cq = min_cq) %>% 
-  left_join(container)
-dna %>% head
-lm(cq ~ x260_230, 
-         data = dna) %>% plot
-
-boxplot((dna$cq))
-ggplot(dna, aes(x260_230, cq))+
-  geom_point()+
-  geom_smooth(method = 'lm')+
-  theme_classic()
-cor(dna$cq, dna$x260_230)
-m <- glm(pest_rna ~ cq, 
-      data = dna, family = binomial) 
-
-summary(m)
-x <- seq(20,50, 0.1)
-ndata <- data.frame(cq = x)
-y <- predict(m, newdata=data.frame(cq = x),
-             type="response")
-y <- predict(m, newdata=data.frame(cq = x),se.fit = T, type = 'response')
-ndata 
-ggplot(cbind(ndata, y), aes(cq, y))+
-  geom_ribbon(aes(ymin = right_lwr, ymax = right_upr),
-              fill = 'grey', alpha = 0.5)+
-  geom_line(colour = 'pink',lwd = 2)+
-  theme_classic()+
-  xlab('rep(1-3) minimum cq')+
-  ylab('RNA detected in container')
-
-
-## DNA 01 -----
-
-pest <- pest_detection %>% 
-  left_join(container) %>% 
-  mutate(dna = ifelse(pests_sppDNA > 0, 1, 0))
-
-pest %>% data.frame %>% head
-m <- glm(dna ~ container_grade, data = pest, family = binomial) 
-summary(m)
-
-
-fam <- family(m)
-fam
-str(fam)
-
-ilink <- fam$linkinv
-ilink
-
-## grad the inverse link function
-ilink <- family(m)$linkinv
-## add fit and se.fit on the **link** scale
-ndata <- bind_cols(ndata, setNames(as_tibble(predict(m, ndata, se.fit = TRUE)[1:2]),
-                                   c('fit_link','se_link')))
-## create the interval and backtransform
-ndata <- mutate(ndata,
-                fit_resp  = ilink(fit_link),
-                right_upr = ilink(fit_link + (2 * se_link)),
-                right_lwr = ilink(fit_link - (2 * se_link)))
-## show
-ndata
-
-
-x <- unique(pest$container_grade)#seq(20,50, 0.1)
-
-ndata <- data.frame(container_grade = x)
-y <- predict(m, newdata=data.frame(container_grade = x),
-             type="response", se.fit =T)
-#y <- predict(m, newdata=data.frame(cq = x),se.fit = T, type = 'response')
-
-ggplot(ndata, aes(container_grade, fit_link))+
- # geom_point(data = dna,alpha = 0.5)+
-  geom_errorbar(aes(ymin = fit_link - right_lwr, ymax =fit_link + right_upr),
-              fill = 'grey', alpha = 0.5, width = 0, lwd = 1)+
-  geom_point(colour = 'black',size = 4)+
-  theme_classic()+
-  ylab('probability of detecting DNA (se)')
