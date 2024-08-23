@@ -195,24 +195,22 @@ seedcat %>% summary
 contam %>% head
 contam %>% mutate_all(factor) %>% summary
 
-str_replace_all(contam$matrix_type, "[^[:alnum:]]", "")
-contam %>% 
+
+contam_cat <- contam %>% 
   select(container_id, matrix_type) %>%
   unique() %>% 
   mutate(matrix_type= str_replace_all(matrix_type, "[^[:alnum:]]", " "),
-         category = ifelse(grepl('ood', matrix_type)|grepl('imber', matrix_type), 
-                           'wood', 'other'),
-         category = ifelse(grepl('oils', matrix_type), 'soil', category)) %>% 
-  
+         wood = ifelse(grepl('ood', matrix_type)|grepl('imber', matrix_type), 
+                           1, 0),
+         soil = ifelse(grepl('oils', matrix_type), 1, 0)) %>%
   select(-matrix_type) %>% 
-  unique %>% 
+  #unique %>% 
   group_by(container_id) %>% 
-  summarise(category = paste(category, collapse = '-')) %>% 
-  separate(category, into = paste0('a', 1:3), sep = '-') %>% 
-  rowwise() %>% 
-  mutate(contam = paste(sort(c(a1, a2, a3)))) 
-   mutate_all(as.factor) %>% 
-  summary
+  summarise(wood = sum(wood),
+            soil = sum(soil)) %>% 
+  mutate(wood = ifelse(wood > 0, 1, 0),
+         soil = ifelse(soil > 0, 1, 0))
+contam_cat  %>%  summary 
 ## goods ICS -----------
 container_history$container_id %>% unique %>% length
 ics <-container_history %>% filter(data_origin != 'Shipping company')
@@ -294,11 +292,16 @@ icssampled$container_id %>% duplicated %>% table
     left_join(goods_sum) %>% 
     left_join(icssampled) %>% 
     left_join(seedcat) %>% 
+    left_join(contam_cat) %>% 
     mutate(goods_risk = ifelse(is.na(goods_risk), 'unknown', goods_risk),
-           seed = ifelse(is.na(seed), 'no seed', as.character(seed))) %>% 
+           seed = ifelse(is.na(seed), 'no seed', as.character(seed)),
+           soil = ifelse(is.na(soil), 0, soil),
+           wood = ifelse(is.na(wood), 0, wood)) %>% 
     mutate_if(is.character, as.factor)
   container %>% summary
 container$container_grade %>% table  
+
+container$wood %>% table  
 
 ## save --------------------------------------------------------------------
 
