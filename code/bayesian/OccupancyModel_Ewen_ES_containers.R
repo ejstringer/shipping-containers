@@ -3,30 +3,89 @@
 
 library(tidyverse)
 library(jagsUI)
-library(data.table)
+library(data.table, lib.loc = 'C:/Program Files/R/R-4.1.2/library/')
 library(grid)
-library(ggpubr)
+#library(ggpubr)
 library(bayesplot)
 
-setwd("WORKING DIRECTORY")
+
+# data --------------------------------------------------------------------
+
+collection <- read.csv('./output/C05246_collection.csv')
+
+specific <- read.csv('./output/C05246_genetic_species_specific.csv')
+
+container_var <- read.csv('./output/pest_container_specs.csv')
+
+spp <- collection %>% 
+  left_join(specific) %>% 
+  relocate(container_id) %>% 
+  select(-visual_lab) %>% 
+  filter(sample_method != 'VAC UNDERFLOOR') %>% 
+  filter(!sample_id %in% c('X20210721_1510', 'X20210511_0088')) %>% 
+  mutate(across(eRNA_rep_1_Ct,
+                ~ifelse((common_name == 'brown marmorated stink bug' &
+                           eRNA_rep_1_Ct > 0 & eRNA_rep_2_Ct == 0 &
+                           eDNA_rep_1_Ct == 0), 0, .x))) %>% 
+  mutate(across(eRNA_rep_1_Ct:eRNA_rep_3_Ct,
+                ~ifelse((common_name == 'electric ant' &
+                           eRNA_rep_1_Ct > 0 & 
+                           eDNA_rep_1_Ct == 0), 0, .x))) %>% 
+  mutate(dna = eDNA_rep_1_Ct+eDNA_rep_2_Ct+eDNA_rep_3_Ct,
+         dna = ifelse(is.na(dna), 34*3, dna)) %>% 
+  filter(complete.cases(container_id))
+spp %>% arrange(desc(dna))
+
+pest_present <- spp$container_id[spp$dna>0]
+
+
+pcr <- spp %>% select(-grep('RNA', names(spp))) %>% 
+  filter(container_id %in% pest_present) %>% 
+  filter(common_name == 'khapra beetle') %>% 
+  pivot_longer(cols = eDNA_rep_1_Ct:eDNA_rep_3_Ct, names_to = 'rep',
+               values_to = 'cq') %>% 
+  
+  mutate(rep = sub('eDNA_rep_', '', rep),
+         rep = as.numeric(sub('_Ct', '', rep)),
+         pa_edna = ifelse(cq > 0, 1, 0)) %>%
+  left_join(container_var) %>% 
+  mutate(x260_230 = as.numeric(x260_230),
+         pa_edna = ifelse(is.na(pa_edna), 1,pa_edna)) %>% # 
+  mutate_if(is.character, factor) %>% 
+  filter(complete.cases(age)) %>% 
+  mutate(site = as.numeric(factor(container_id))) %>%
+  rename(sample = common_name) %>%
+  arrange(site, rep) %>% 
+  select(container_id,site, sample, rep, pa_edna,
+         container_grade, age, conc_2_ng_ul,x260_230)
+
+summary(pcr)
+
+
+# Ewens -------------------------------------------------------------------
+
+
+#setwd("WORKING DIRECTORY")
 
 # read in qPCR data
-pcr <- read.csv("PCR_results_cleaned.csv")
-glimpse(pcr)
+#pcr <- read.csv("PCR_results_cleaned.csv")
+# glimpse(pcr)
+#   pcr <- read.csv('./output/pest_dna_cq_rna.csv')
 
 # exclude control sites (sites 31 - 35)
-pcr <- pcr %>% filter(site < 31)
+#pcr <- pcr %>% filter(site < 31)
 
 # label pcr reps and get unique sample values
 pcr <- pcr |>
   group_by(site, sample) |>
-  mutate(rep = row_number()) |>
+  #mutate(rep = row_number()) |>
   ungroup() |>
-  mutate(sample = paste(site, sample))
+  mutate(sample = paste(site, factor(sample)))
 
 glimpse(pcr)
 
 table(pcr$sample)
+table(pcr$sample) %>% table
 
 # data for the model
 indat <- pcr |>
@@ -56,9 +115,15 @@ z <- ifelse(zz$n.pos > 0, 1, NA)
 # in a sample = a
 # if DNA is detected in a sample a = 1, if not a = NA
 a <- ifelse(rowSums(y) > 0, 1, NA)
+a[7804]
 ## Load in covariates
-cov <- read.csv("CT_occupancyModelling_covariates.csv")
-cov <- cov %>% filter(site < 31) # remove the control sites
+#cov <- read.csv("CT_occupancyModelling_covariates.csv")
+#cov <- cov %>% filter(site < 31) # remove the control sites
+
+cov <- pcr %>% 
+  select(site, sample, container_grade,
+         age, conc_2_ng_ul,x260_230) %>% 
+  mutate(container_grade = ifelse(container_grade == 'General purpose', 0,1))
 
 # function for standardising based on standard deviations
 # ***note*** this is blocked out to facilitate making easier predictions
@@ -67,15 +132,24 @@ cov <- cov %>% filter(site < 31) # remove the control sites
 #   (x-mean(x, na.rm = T))/(2*sd(x, na.rm = T))
 # }
 
-table(is.na(cov$toad_density)) # Bolgers I lost data sheet so no time surveyed - no toads seen though so density set at 0 instead of NA
-dens <- cov$toad_density # %>% sc()
+#table(is.na(cov$toad_density)) # Bolgers I lost data sheet so no time surveyed - no toads seen though so density set at 0 instead of NA
+# dens <- cov$toad_density # %>% sc()
+# 
+# 
+# tads <- cov$tads
+# 
+# samp_vol <- cov$samp_vol # %>% sc()
+# 
+# perim <- cov$perim # %>% sc()
+
+dens <- cov$age # %>% sc()
 
 
-tads <- cov$tads
+tads <- cov$container_grade
 
-samp_vol <- cov$samp_vol # %>% sc()
+samp_vol <- cov$conc_2_ng_ul # %>% sc()
 
-perim <- cov$perim # %>% sc()
+perim <- cov$x260_230 # %>% sc()
 
 # ==============================================================================
 # Occupancy model
