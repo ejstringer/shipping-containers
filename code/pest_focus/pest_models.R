@@ -16,6 +16,8 @@ pestcount <-table(pest_detection$pests_sppDNA,
 
 pest_detectionDNA <- pest_detection %>% 
   filter(!is.na(pests_metaDNA)) %>% 
+  mutate(pests_sppDNA_binary = ifelse(pests_sppDNA > 0, 1,0),
+         pests_metaDNA_binary = ifelse(pests_metaDNA > 0, 1,0)) %>% 
   mutate_all(as.factor) %>% 
   left_join(pestcount) 
 
@@ -31,6 +33,8 @@ pestcount2 <-table(pest_detection$pests_sppRNA,
 
 pest_detectionRNA <- pest_detection %>% 
   filter(!is.na(pests_metaRNA)) %>% 
+  mutate(pests_sppRNA_binary = ifelse(pests_sppRNA > 0, 1,0),
+         pests_metaRNA_binary = ifelse(pests_metaRNA > 0, 1,0)) %>% 
   mutate_all(as.factor) %>% 
   left_join(pestcount2) 
 
@@ -51,6 +55,7 @@ pRNA <-  pest_detectionRNA %>%
   guides(colour=guide_legend(title='Meta/Spp specific'))+
   xlab('Species specific DNA detections')+
   ylab('Metabarcoding DNA detections')
+
 
 ggsave('./figures/pest_counts_comparison_DNA.png')
 
@@ -105,8 +110,122 @@ pest_detectionRNA %>%
   ylab('Frequency')
 
 ggsave('./figures/pest_counts_hist_RNA.png')
+
+pest_detection %>% head
+
+irr::icc(
+  pest_detection[c(2,4)], model = "twoway", 
+  type = "agreement", unit = "single"
+)
+
+irr::icc(
+  mutate_all(pest_detectionRNA[c(3,6)],as.numeric), model = "twoway", 
+  type = "agreement", unit = "single"
+)
+
 # models ------------------------------------------------------------------
 
+## level 1a: diversity -------------------------------------------------------
+### data ------
+pest <- pest_detection %>% 
+  left_join(container) %>% 
+  mutate(dna = ifelse(pests_sppDNA > 0, 1, 0), 
+         grade = factor(container_grade, 
+                        levels = unique(container$container_grade)[c(2,3,1)])) %>% 
+  filter(complete.cases(age), complete.cases(container_size)) %>% 
+  mutate(food = ifelse(goods_risk == 'food', 1, 0),
+         seed = ifelse(seed == 'no seed', 0, 1),
+         diversity = richness_DNA) 
+
+### glm model -----
+mFull <- lm(diversity ~ grade + age + food + seed + wood + soil, 
+            data = pest) 
+summary(mFull)
+
+m <- lm(diversity ~ grade + age +  seed + wood, 
+        data = pest) 
+summary(m)
+
+
+### flextable ----------
+tb <- summary(mFull)$coefficients %>% 
+  data.frame %>% 
+  mutate(coefficient = rownames(.),
+         coefficient = ifelse(coefficient == '(Intercept)', 
+                              'Intercept', coefficient),
+         coefficient = sub('grade', '', coefficient),
+         r2 = summary(mFull)$adj.r.squared,
+         r2= ifelse(duplicated(r2), NA, r2)) %>% 
+  relocate(coefficient) %>% 
+  data.frame(row.names = NULL) %>% 
+  setNames(gsub('__','_', tolower(gsub('\\.', '_', names(.))))) %>% 
+  rename(p_value = pr__t_) %>% 
+  mutate_if(is.numeric, round, 3)
+
+
+fxtb1a <- tb %>% 
+  rename_all(~ gsub("_", " ", .))%>% 
+  flextable() %>% 
+  autofit() %>% 
+  bold(part = 'header') %>% 
+  bold(i= which(tb$p_value < 0.05)[-1]) %>% 
+  border_remove() %>% 
+  set_caption(caption = 'Level 1a analysis: Metabarcoding diversity and shipping container characteristics') %>% 
+  footnote(i = 1, j = 1, 
+           value = as_paragraph(
+             c("Response variable = species richness")
+           ),
+           ref_symbols = c( " * "),
+           part = "header",inline=T) %>% 
+  fontsize(size = 9, part = "footer") %>% 
+  align(align = 'right', part = 'footer') %>% 
+  hline(part = 'header',
+        border = fp_border(color = "grey30",
+                           width = 3, 
+                           style = 'solid')) %>% 
+  hline(i = nrow(tb),border = fp_border(color = "grey30",
+                                        width = 2, 
+                                        style = 'solid')) %>% 
+  compose(
+    part = "header", j = 6,
+    value = as_paragraph(('R'),as_sup('2')));fxtb1a
+
+### predict -------
+x <- 0:25
+
+ndata <- data.frame(age =  x, grade = rep(unique(pest$grade), each = length(x)),
+                    seed = rep(0:1, each = length(x)*3),
+                    wood = rep(0:1, each = length(x)*6))
+
+y <- predict(m, newdata=ndata,
+             type="response", se.fit =T)
+
+ndata<- cbind(ndata, fit = y$fit, se = y$se.fit) %>% 
+  mutate(lwr = fit - (se*1.96),
+         upr = fit + (se*1.96),
+         #seed = ifelse(seed > 0, 'seed', 'absent'),
+         #wood = ifelse(wood > 0, 'wood', 'absent'),
+         diversity = fit) %>% 
+  filter(seed == 1, wood == 1)
+
+### plot ---------
+ggplot(ndata, aes(age, diversity, colour = grade, fill = grade))+
+  geom_ribbon(aes(ymin = lwr, ymax = upr), colour = NA,
+              alpha = 0.2, lwd = 1)+
+  geom_line(size = 1)+
+  theme_bw()+
+  #facet_grid(wood ~ seed)+
+ # geom_point(data = pest)+
+  #ylim(0,0.3)+
+  # geom_hline(yintercept = 0.19, lty =2)+
+  ylab('Species richness')+
+  xlab('Container age')
+
+ggsave('./figures/pest_level1a_analysis_containers_diversity.png')
+
+glm(dna ~ diversity, data = pest) %>% summary
+
+lm(diversity~dna, data = pest) %>% summary
 
 ## level 1: 0/1 DNA -------------------------------------------------------
 ### data ------
@@ -120,7 +239,7 @@ pest <- pest_detection %>%
          seed = ifelse(seed == 'no seed', 0, 1))
 
 ### glm model -----
-mFull <- glm(dna ~ grade + age + food + seed + wood + soil, data = pest,
+mFull <- glm(dna ~ diversity + grade + age + food + seed + wood + soil, data = pest,
          family = binomial) 
 summary(mFull)
 
@@ -189,8 +308,9 @@ ggplot(ndata, aes(grade, fit))+
   geom_errorbar(aes(ymin = lwr, ymax = upr),
                 colour = viridisLite::viridis(4)[2], alpha = 0.7, width = 0, lwd = 1)+
   geom_point(colour = viridisLite::viridis(4)[2],size = 3)+
-  theme_classic()+
-  ylim(0,0.5)+
+  theme_bw()+
+  ylim(0,0.3)+
+ # geom_hline(yintercept = 0.19, lty =2)+
   ylab('Probability of detecting DNA')+
   xlab('Container grade')
 
@@ -288,6 +408,11 @@ ggsave('./figures/pest_level2_analysis_samples.png')
 
 ### glm model ---------
 
+
+m3full <- glm(pest_rna ~ cq + common_name, 
+          data = dna, family = binomial) 
+summary(m3full)
+
 m3 <- glm(pest_rna ~ cq, 
          data = dna, family = binomial) 
 
@@ -338,10 +463,16 @@ fxtb3<-tb %>%
 ### predict -----------
 
 x <- seq(20,50, 0.1)
-y <- predict(m3, newdata = data.frame(cq = x), se.fit = T, type='response')
+
+ndata <- data.frame(cq = x,
+                    common_name = rep(unique(dna$common_name),
+                                      each = length(x)))
+y <- predict(m3full, 
+             newdata = ndata,
+             se.fit = T, type='response')
 
 
-ndata<- data.frame(cq = x, fit = y$fit, se = y$se.fit) %>% 
+ndata<- cbind(ndata, fit = y$fit, se = y$se.fit) %>% 
   mutate(lwr = fit - (se*1.96),
          upr = fit + (se*1.96))
 ndata %>% head
@@ -349,16 +480,21 @@ ndata %>% head
 
 ### plot --------------
 
-ggplot(ndata, aes(cq, fit))+
+ggplot(ndata, aes(cq, fit, colour = common_name, fill = common_name))+
   geom_ribbon(aes(ymin = lwr, ymax = upr),
-              fill = 'grey', alpha = 0.5)+
-  geom_line(colour = 'pink',lwd = 2)+
+              fill = 'grey', colour = 'grey80',
+              alpha = 0.5)+
+  geom_line(lwd = 1.5)+
+  facet_wrap(~common_name, ncol = 1)+
   geom_point(data = dna, aes(y = pest_rna, x = cq))+
-  theme_classic()+
+  theme_bw()+
   xlab('DNA cq')+
-  ylab('RNA detection probability')
+  ylab('RNA detection probability')+
+  theme(legend.position = 'none',
+        strip.background = element_blank())
 
-ggsave('./figures/pest_level3_analysis_RNA.png')
+ggsave('./figures/pest_level3_analysis_RNA_species.png', units = 'cm',
+       height = 21, width = 14)
 
 
 ## save flextables ---------

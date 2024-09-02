@@ -8,7 +8,7 @@
 ## things like age of container, goods being transported, and risk country. 
 ##    The next dataset is species specific, filtered down to only containers 
 ## where DNA was detected. Here we are interested in how DNA cq relates to 
-## detection of RNA but also how sample quality and yeild may effect DNA cq.
+## detection of RNA but also how sample quality and yield may effect DNA cq.
 
 
 
@@ -26,24 +26,19 @@ spp <- collection %>%
   relocate(container_id) %>% 
   select(-visual_lab) %>% 
   filter(sample_method != 'VAC UNDERFLOOR') %>% 
-  filter(!sample_id %in% c('X20210721_1510', 'X20210511_0088')) %>% 
-  mutate(across(eRNA_rep_1_Ct,
-                ~ifelse((common_name == 'brown marmorated stink bug' &
-                            eRNA_rep_1_Ct > 0 & eRNA_rep_2_Ct == 0 &
-                            eDNA_rep_1_Ct == 0), 0, .x))) %>% 
-  mutate(across(eRNA_rep_1_Ct:eRNA_rep_3_Ct,
-                ~ifelse((common_name == 'electric ant' &
-                           eRNA_rep_1_Ct > 0 & 
-                           eDNA_rep_1_Ct == 0), 0, .x))) 
+  filter(!sample_id %in% c('X20210721_1510', 'X20210511_0088'))
+
+
   spp %>% 
     filter(is.na(eDNA_rep_1_Ct)) %>% 
   mutate(across(eDNA_rep_1_Ct:eDNA_rep_3_Ct,
-                ~ifelse(is.na(.x),34.56, .x))) # based on mean of 3/3 Furui
+                ~ifelse(is.na(.x),34.56, .x))) %>%  # based on mean of 3/3 Furui
+    data.frame # DNA NA is actually present
 
 rna <- read.csv('./output/C05246_genetic_metabarcoding_rna.csv')%>% 
-  filter(PI > 0.99)
+  filter(PI > 99)
 dna <- read.csv('./output/C05246_genetic_metabarcoding_dna.csv') %>% 
-  filter(PI > 0.99)
+  filter(PI > 99)
 
 seed <- read.csv('./output/C05246_visual_seed.csv') %>% 
   left_join(collection[,c('sample_id', 'container_id', 'sample_method')]) %>% 
@@ -63,7 +58,9 @@ container_trial <- read.csv('./data/shipping_meta/Approach rate trial container 
 
 
 spp5 <- data.frame(species = unique(spp$species)) %>% 
-  separate(species,sep = ' ', into = c('genus'), remove = F) 
+  separate(species,sep = ' ', into = c('genus'), remove = F)
+priority <- read.csv('./data/high_priority_insect_species.csv') %>% 
+  mutate(species = str_trim(species))
 
 ###########################################################################-
 #           congruence                                                  ----
@@ -73,7 +70,7 @@ spp5 <- data.frame(species = unique(spp$species)) %>%
 
 ## metabarcoding -----------------------------------------------------------
 
-rna_detected <- rna %>% filter(high_priority) %>%
+rna_detected <- rna %>% #filter(high_priority) %>%
   select_if(grepl('X20', names(.)) | grepl('best_hit', names(.))) %>% 
   group_by(best_hit) %>% 
   summarise_if(is.numeric, sum) %>% 
@@ -83,16 +80,21 @@ rna_detected <- rna %>% filter(high_priority) %>%
   relocate(container_id) %>% 
   filter(sample_method != 'VAC UNDERFLOOR') %>% 
   select(-sample_id, -sample_method) %>% 
-  mutate(detected_rna_spp = best_hit %in% spp5$species) %>% 
+  mutate(reads_rna = ifelse(reads_rna < 100, 0, reads_rna)) %>% 
+  group_by(container_id, best_hit) %>% 
+  summarise(reads_rna = sum(reads_rna)) %>% 
+  mutate(detected_rna_spp = best_hit %in% spp5$species,
+         detected_rna_priority =  best_hit %in% priority$species) %>% 
   rename(species = best_hit) %>% 
   group_by(container_id) %>% 
-  summarise(pests_metaRNA = sum(reads_rna > 0),
-            pests_meta5RNA = sum(detected_rna_spp &reads_rna > 0))
+  summarise(richness_RNA = sum(reads_rna > 0),
+            pests_metaRNA = sum(detected_rna_priority & reads_rna > 0),
+            pests_meta5RNA = sum(detected_rna_spp & reads_rna > 0))
 
 rna_detected[,c('container_id')] %>% duplicated %>% table
 
 names(dna) %>% tail
-dna_detected <- dna %>% filter(high_priority) %>%
+dna_detected <- dna %>% #filter(high_priority) %>%
   select_if(grepl('X20', names(.)) | grepl('best_hit', names(.))) %>% 
   group_by(best_hit) %>% 
   summarise_if(is.numeric, sum) %>%
@@ -102,16 +104,20 @@ dna_detected <- dna %>% filter(high_priority) %>%
   relocate(container_id) %>% 
   filter(sample_method != 'VAC UNDERFLOOR') %>% 
   select(-sample_id, -sample_method) %>% 
-  mutate(detected_dna_spp = best_hit %in% unique(spp$species)) %>% 
+  mutate(reads_rna = ifelse(reads_dna < 100, 0, reads_dna)) %>% 
+  group_by(container_id, best_hit) %>% 
+  summarise(reads_dna = sum(reads_dna)) %>% 
+  mutate(detected_dna_spp = best_hit %in% spp5$species,
+         detected_dna_priority =  best_hit %in% priority$species) %>% 
   rename(species = best_hit) %>% 
-  unique() %>% 
   group_by(container_id) %>% 
-  summarise(pests_metaDNA = sum(reads_dna > 0),
-            pests_meta5DNA = sum(detected_dna_spp &reads_dna > 0)) %>% 
+  summarise(richness_DNA = sum(reads_dna > 0),
+            pests_metaDNA = sum(detected_dna_priority & reads_dna > 0),
+            pests_meta5DNA = sum(detected_dna_spp & reads_dna > 0)) %>% 
   left_join(rna_detected)
 
 dna_detected[,c('container_id')] %>% duplicated %>% table
-
+dna_detected$pests_meta5DNA %>% sum
 
 colSums(dna_detected[,2:5], na.rm = T)
 colMeans(dna_detected[,2:5], na.rm = T)
@@ -154,9 +160,10 @@ pest_detection <- specific_detection %>%
 
 
 pest_detection %>% 
+  filter(complete.cases(pests_metaRNA)) %>% 
   ggplot(aes(pests_sppDNA, pests_sppRNA, 
              colour = factor(pests_metaRNA)))+
-  geom_jitter(size = 2.5,alpha = 0.6, width = 0.25, height = 0.25)+
+  geom_jitter(size = 2.5,alpha = 0.6, width = 0.1, height = 0.1)+
   theme_bw()
   
 
@@ -166,6 +173,20 @@ pest_detection %>%
   geom_jitter(aes(size = factor(pests_sppRNA)), alpha = 0.5)+
   theme_classic()+
   scale_y_continuous(limits = c(0,3))
+
+
+t.test(pest_detection$richness_DNA,
+       pest_detection$richness_RNA,
+       paired = T)
+
+pest_detection %>% 
+  filter(complete.cases(richness_RNA)) %>% 
+ # lm(richness_RNA ~ richness_DNA, data = .) %>% summary
+  ggplot(aes(richness_DNA, richness_RNA))+
+  geom_point()+
+  theme_classic()+
+  geom_smooth(method = 'lm')+
+  geom_abline(slope = 1, intercept = 0, colour = 'red', lty = 2)
   
 ### save --------------------------------------------------------------------
 

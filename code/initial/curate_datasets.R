@@ -228,7 +228,16 @@ spp_specific <- do.call('bind_rows', spp_renamed) %>%
   select(-method_collection, -container_id) %>% 
   relocate(sample_id, lab_code, common_name, species) %>% 
   setNames(gsub('\\.', '_', names(.))) %>%
-  unique()
+  unique() %>% 
+  mutate(across(eRNA_rep_1_Ct:eRNA_rep_3_Ct,
+                ~ifelse((eRNA_rep_1_Ct > 0 & 
+                           eDNA_rep_1_Ct == 0 & 
+                           eDNA_rep_2_Ct == 0 & 
+                           eDNA_rep_3_Ct == 0), 0, .x))) # remove positive RNA when DNA is absent
+
+
+spp_specific$common_name %>% table
+summary(test)
 
 spp_specific %>% names
 spp_specific[,c(1,3)] %>% duplicated %>% table
