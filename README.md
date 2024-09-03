@@ -50,28 +50,33 @@ Original data files can be found in the folder labelled *Metabarcoding publicati
 
 File 1:
 
+* Directory: intitial
 * File name: filter_metabarcodingDNA_file-Arthropoda.R
 * Purpose: filtering the very large ASV file with all phylum to only arthropoda asvs 
 
 File 2:
 
+* Directory: intitial
 * File name: initial_data_exploration.R
 * Purpose: To identify the container ids to link all the datasets by
 
 File 3:
 
+* Directory: intitial
 * File name: curate_datasets.R
 * Purpose: To curate and simplify the large amounts of data (see above diagram)
 
 File 4:
 
-* File name: detection_congruence.R
-* Purpose: Congruence between species specific detections vs visual and metabarcoding
+* Directory: pest_focus
+* File name: curate_pest_data.R
+* Purpose: curate data for analysis summarising by pest count/presence
 
 
 File 5:
 
-* File name: specific_cq_exploration.R
-* Purpose: Exploring species specific eDNA and eRNA detections to cq values, seed identified in container, and species
+* Directory: pest_focus
+* File name: pest_model.R
+* Purpose: ANALYSIS: modeling three levels of analysis.
 
 

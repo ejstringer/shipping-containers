@@ -135,9 +135,40 @@ pest <- pest_detection %>%
   filter(complete.cases(age), complete.cases(container_size)) %>% 
   mutate(food = ifelse(goods_risk == 'food', 1, 0),
          seed = ifelse(seed == 'no seed', 0, 1),
-         diversity = richness_DNA) 
+         diversity = richness_DNA,
+         metaDNA01 = ifelse(pests_metaDNA>0, 1,0),
+         prop = pests_metaDNA/diversity) 
 
 ### glm model -----
+m<- glm(metaDNA01~diversity, data = pest, family = binomial) 
+lm(prop~diversity, data = pest) %>% summary
+
+
+x <- 0:60
+
+ndata <- data.frame(diversity = x)
+
+y <- predict(m, newdata=ndata,
+             type="response", se.fit =T)
+
+ndata<- cbind(ndata, fit = y$fit, se = y$se.fit) %>% 
+  mutate(lwr = fit - (se*1.96),
+         upr = fit + (se*1.96),
+         metaDNA01 = fit)
+
+ggplot(pest, aes(diversity, metaDNA01))+
+  geom_jitter(height = 0.05, alpha = 0.3) +
+  geom_ribbon(data = ndata,aes(ymin = lwr, ymax = upr),
+              fill = 'grey', alpha = 0.5)+
+  geom_line(data = ndata, aes(y = fit), 
+            colour = 'pink',lwd = 2)+
+  theme_classic()
+
+ggplot(filter(pest, metaDNA01 > 0), aes(diversity, prop))+
+  geom_point(size = 4) +
+  geom_smooth()+
+  theme_classic()
+
 mFull <- lm(diversity ~ grade + age + food + seed + wood + soil, 
             data = pest) 
 summary(mFull)
