@@ -15,4 +15,5 @@ library(lmerTest)
 library(flextable, lib.loc = 'C:/Program Files/R/R-4.1.2/library/')
 library(officer, lib.loc = 'C:/Program Files/R/R-4.1.2/library/')
 
+library(abdiv)
 #library(DescTools)

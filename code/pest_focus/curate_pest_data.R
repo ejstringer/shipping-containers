@@ -84,12 +84,17 @@ rna_detected <- rna %>% #filter(high_priority) %>%
   group_by(container_id, best_hit) %>% 
   summarise(reads_rna = sum(reads_rna)) %>% 
   mutate(detected_rna_spp = best_hit %in% spp5$species,
+         reads_rna_priority =  ifelse(best_hit %in% priority$species,
+                                      reads_rna, 0),
          detected_rna_priority =  best_hit %in% priority$species) %>% 
   rename(species = best_hit) %>% 
   group_by(container_id) %>% 
-  summarise(richness_RNA = sum(reads_rna > 0),
+  summarise(total_reads_RNA = sum(reads_rna),
+            pest_reads_RNA = sum(reads_rna_priority),
+            richness_RNA = sum(reads_rna > 0),
             pests_metaRNA = sum(detected_rna_priority & reads_rna > 0),
-            pests_meta5RNA = sum(detected_rna_spp & reads_rna > 0))
+            pests_meta5RNA = sum(detected_rna_spp & reads_rna > 0)) %>% 
+  mutate(rel_abundance_RNA = pest_reads_RNA/total_reads_RNA)
 
 rna_detected[,c('container_id')] %>% duplicated %>% table
 
@@ -108,16 +113,23 @@ dna_detected <- dna %>% #filter(high_priority) %>%
   group_by(container_id, best_hit) %>% 
   summarise(reads_dna = sum(reads_dna)) %>% 
   mutate(detected_dna_spp = best_hit %in% spp5$species,
+         reads_dna_priority =  ifelse(best_hit %in% priority$species,
+                                      reads_dna, 0),
          detected_dna_priority =  best_hit %in% priority$species) %>% 
   rename(species = best_hit) %>% 
   group_by(container_id) %>% 
-  summarise(richness_DNA = sum(reads_dna > 0),
+  summarise(total_reads_DNA = sum(reads_dna),
+            pest_reads_DNA = sum(reads_dna_priority),
+            richness_DNA = sum(reads_dna > 0),
             pests_metaDNA = sum(detected_dna_priority & reads_dna > 0),
             pests_meta5DNA = sum(detected_dna_spp & reads_dna > 0)) %>% 
+  mutate(rel_abundance_DNA = pest_reads_DNA/total_reads_DNA) %>% 
   left_join(rna_detected)
 
 dna_detected[,c('container_id')] %>% duplicated %>% table
 dna_detected$pests_meta5DNA %>% sum
+
+dna_detected$rel_abundance_DNA[dna_detected$pests_metaDNA>0] %>% boxplot
 
 colSums(dna_detected[,2:5], na.rm = T)
 colMeans(dna_detected[,2:5], na.rm = T)
@@ -424,4 +436,16 @@ DNA_cq_sample %>%
 
 names(DNA_cq_sample)
 
+## ---------
+
+lm(pest_detection$rel_abundance_DNA ~ pest_detection$richness_DNA) %>% summary
+
+pest_detection %>% 
+  filter(pests_metaDNA > 0) %>% 
+  ggplot(aes(y= rel_abundance_DNA, x= total_reads_DNA))+
+  geom_point()+
+  theme_classic()+
+  scale_x_log10()+
+  scale_y_log10()
+lm(rel_abundance_DNA ~ total_reads_DNA, data = .) %>% summary
 
