@@ -119,6 +119,8 @@ dna_detected <- dna %>% #filter(high_priority) %>%
   rename(species = best_hit) %>% 
   group_by(container_id) %>% 
   summarise(total_reads_DNA = sum(reads_dna),
+            simpsondna = simpson(reads_dna),
+            shannondna = shannon(reads_dna),
             pest_reads_DNA = sum(reads_dna_priority),
             richness_DNA = sum(reads_dna > 0),
             pests_metaDNA = sum(detected_dna_priority & reads_dna > 0),
@@ -437,15 +439,3 @@ DNA_cq_sample %>%
 names(DNA_cq_sample)
 
 ## ---------
-
-lm(pest_detection$rel_abundance_DNA ~ pest_detection$richness_DNA) %>% summary
-
-pest_detection %>% 
-  filter(pests_metaDNA > 0) %>% 
-  ggplot(aes(y= rel_abundance_DNA, x= total_reads_DNA))+
-  geom_point()+
-  theme_classic()+
-  scale_x_log10()+
-  scale_y_log10()
-lm(rel_abundance_DNA ~ total_reads_DNA, data = .) %>% summary
-
