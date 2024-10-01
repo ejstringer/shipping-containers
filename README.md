@@ -62,21 +62,40 @@ File 2:
 
 File 3:
 
-* Directory: intitial
+* Directory: code
 * File name: curate_datasets.R
 * Purpose: To curate and simplify the large amounts of data (see above diagram)
 
 File 4:
 
 * Directory: pest_focus
-* File name: curate_pest_data.R
-* Purpose: curate data for analysis summarising by pest count/presence
+* File name: days_since.R
+* Purpose: DNA cq and RNA cq for species specific data against days between arrival and collection
 
 
 File 5:
 
 * Directory: pest_focus
-* File name: pest_model.R
-* Purpose: ANALYSIS: modeling three levels of analysis.
+* File name: curate_pest_data.R
+* Purpose: curate data for analysis summarising by pest count/presence
+
+
+File 6:
+
+* Directory: pest_focus
+* File name: pest_congruence.R
+* Purpose: Comparing metabarcoding with speciese specific detections
+
+File 7:
+
+* Directory: pest_focus
+* File name: pest_models_spp.R
+* Purpose: ANALYSIS: modeling three levels of analysis for species specific data.
+
+File 6:
+
+* Directory: pest_focus
+* File name: pest_models_meta.R
+* Purpose: ANALYSIS: modeling three levels of analysis for metabarcoding data.
 
 
