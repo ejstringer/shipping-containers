@@ -3,7 +3,7 @@ source('./code/libraries.R')
 DNA_cq_sample <- read.csv('./output/pest_dna_cq_rna.csv')
 pest_detection <- read.csv('./output/pest_detection_methods.csv')
 container <- read.csv('./output/pest_container_specs.csv')
-
+days_since <- read.csv('./output/days_since_arrival.csv')
 # models SPECIFIC----------------------------------------------------------
 
 ## level 1: 0/1 DNA -------------------------------------------------------
@@ -106,11 +106,12 @@ dna <- DNA_cq_sample %>%
    mutate(pure260_230 = ifelse(x260_230 > 1.8 & x260_230 < 2.21, 'pure', 'low quality'),
           pure260_280 = ifelse(x260_280 > 1.7 & x260_280 < 2.01, 'pure', 'low quality')) %>% 
   rename(cq = min_cq) %>% 
-  left_join(container)
+  left_join(container) %>% 
+  left_join(days_since)
 dna %>% head
 
 ### lm model ---------
-mfull2 <- lm(cq ~ conc_2_ng_ul+x260_230+x260_280+age, 
+mfull2 <- lm(cq ~ conc_2_ng_ul+x260_230+x260_280+days_since, 
    data = dna)
 summary(mfull2)
 
@@ -158,6 +159,9 @@ fxtb2 <- tb %>%
                                         width = 2, 
                                         style = 'solid')) %>% 
   compose(
+    i= 5, j = 1,
+    value = as_paragraph(('days since arrival'))) %>% 
+  compose(
     part = "header", j = 6,
     value = as_paragraph(('R'),as_sup('2'))); fxtb2
 
@@ -165,7 +169,7 @@ fxtb2 <- tb %>%
 ### predict -------
 
 x <- seq(0.1,2.1, 0.01)
-y <- predict(m2, newdata = data.frame(x260_230 = x), se.fit = T, type='response')
+y <- predict(m2, newdata = data.frame(x260_230 = x), se.fit = T, type='link')
 
 
 ndata<- data.frame(x260_230 = x, fit = y$fit, se = y$se.fit) %>% 
@@ -190,11 +194,11 @@ ggsave('./figures/pest_focus/spp_level2_analysis_samples.png',
 ### glm model ---------
 
 
-m3full <- glm(pest_rna ~ cq + common_name, 
+m3full <- glm(pest_rna ~ cq + common_name + days_since, 
           data = dna, family = binomial) 
 summary(m3full)
 
-m3 <- glm(pest_rna ~ cq, 
+m3 <- glm(pest_rna ~ cq + common_name, 
          data = dna, family = binomial) 
 
 summary(m3)
@@ -240,29 +244,43 @@ fxtb3<-tb %>%
                            width = 2, 
                            style = 'solid')) %>% 
   compose(
+    i= 7, j = 1,
+    value = as_paragraph(('days since arrival'))) %>% 
+  compose(
     part = "header", j = 6,
     value = as_paragraph(('R'),as_sup('2'), as_sub(' McKelvey & Zavoina')));fxtb3
 ### predict -----------
+
+unlogit <- function(x) exp(x) / (1 + exp(x))
 
 x <- seq(20,50, 0.1)
 
 ndata <- data.frame(cq = x,
                     common_name = rep(unique(dna$common_name),
                                       each = length(x)))
-y <- predict(m3full, 
+y <- predict(m3, 
              newdata = ndata,
-             se.fit = T, type='response')
+             se.fit = T, type='link')
 
 
 ndata<- cbind(ndata, fit = y$fit, se = y$se.fit) %>% 
   mutate(lwr = fit - (se*1.96),
          upr = fit + (se*1.96))
 ndata %>% head
-
+ndata %>% 
+  
+ggplot(aes(cq, fit, colour = common_name, fill = common_name))+
+  geom_ribbon(aes(ymin = lwr, ymax = upr),
+              fill = 'grey',
+              alpha = 0.5)+ geom_line()+
+  facet_wrap(~common_name)+
+  theme_classic()
+  
 
 ### plot --------------
-
-ggplot(ndata, aes(cq, fit, colour = common_name, fill = common_name))+
+ndata %>% 
+  mutate(across(c(fit, lwr, upr), unlogit)) %>% 
+  ggplot(aes(cq, fit, colour = common_name, fill = common_name))+
   geom_ribbon(aes(ymin = lwr, ymax = upr),
               fill = 'grey', colour = 'grey80',
               alpha = 0.5)+
@@ -275,7 +293,7 @@ ggplot(ndata, aes(cq, fit, colour = common_name, fill = common_name))+
   theme(legend.position = 'none',
         strip.background = element_blank())
 
-ggsave('./figures/pest_focus/spp_level3_analysis_RNA_species.png', units = 'cm',
+ggsave('./figures/pest_focus/spp_level3_analysis_RNA_species_unlogit.png', units = 'cm',
        height = 21, width = 14)
 
 

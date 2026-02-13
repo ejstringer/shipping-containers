@@ -20,9 +20,9 @@ spp <- collection %>%
          molecule = sub('_Ct', '', molecule)) %>% 
   separate(molecule, into = c('molecule', 'rep'),sep = '_')
 
-days_since_save <- spp %>% select(container_id, days_since) %>% unique()
-write.csv(days_since_save, './output/days_since_arrival.csv',
-          row.names = FALSE)
+# days_since_save <- spp %>% select(container_id, days_since) %>% unique()
+# write.csv(days_since_save, './output/days_since_arrival.csv',
+#           row.names = FALSE)
 
 spp %>% head
 spp$days_since %>% boxplot
@@ -66,5 +66,5 @@ df1 %>%
         panel.grid.major.x = element_blank(),
         panel.grid.minor.x = element_blank()) -> p1
 p1
-ggsave('./figures/pest_focus/days_since_arrival_style.png', p1, units = 'cm',
+ggsave('./figures/Richard/days_since_arrival_style.png', p1, units = 'cm',
        height = 14, width = 24)

@@ -1,6 +1,8 @@
 # shipping-containers
 Pest insects in shipping containers eDNA and eRNA anlaysis
 
+PLEASE READ: Following discussion with Richard on 12/02/2026 we decided to make some adjustments on the analysis. The *pest_focus* folder is now retired and *Richard* folder has taken its place. To see changes to the analysis go to heading **Richard's Changes**
+
 ## Goals
 
 * Difference between eDNA and eRNA
@@ -70,7 +72,7 @@ File 4:
 
 * Directory: pest_focus
 * File name: days_since.R
-* Purpose: DNA cq and RNA cq for species specific data against days between arrival and collection
+* Purpose: DNA cq and RNA cq for species specific data against days between arrival and collection. SAVE days since CSV FILE FOR MODEL!!!
 
 
 File 5:
@@ -98,4 +100,60 @@ File 6:
 * File name: pest_models_meta.R
 * Purpose: ANALYSIS: modeling three levels of analysis for metabarcoding data.
 
+
+
+
+## New code:
+
+File 1:
+
+* Directory: intitial
+* File name: filter_metabarcodingDNA_file-Arthropoda.R
+* Purpose: filtering the very large ASV file with all phylum to only arthropoda asvs 
+* Changes: No change
+
+File 2:
+
+* Directory: intitial
+* File name: initial_data_exploration.R
+* Purpose: To identify the container ids to link all the datasets by
+* Changes: No change
+
+File 3:
+
+* Directory: code
+* File name: curate_datasets.R
+* Purpose: To curate and simplify the large amounts of data (see above diagram)
+* Changes: No change
+
+File 4:
+
+* Directory: Richard
+* File name: 02_days_since.R
+* Purpose: DNA cq and RNA cq for species specific data against days between arrival and collection. 
+* Changes: No change
+
+
+File 5:
+
+* Directory: Richard
+* File name: 01_curate_pest_data.R
+* Purpose: curate data for analysis summarising by pest count/presence
+* Changes: Simpson index without pest species, arrival date and number of countries added to container specs, species specific detections also included as a new dataset.  
+
+
+
+File 6:
+
+* Directory: Richard
+* File name: 03_pest_congruence.R
+* Purpose: Comparing metabarcoding with speciese specific detections
+* Changes: No changes
+
+File 7:
+
+* Directory: pest_focus
+* File name: 04_models.R
+* Purpose: species specific modelling that now includes simpson index from metabarcoding
+* Changes: New file
 
