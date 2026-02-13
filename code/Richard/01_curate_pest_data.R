@@ -283,13 +283,13 @@ pest_detection %>%
   theme_bw()
 
 
-pest_detection_spp %>% 
-  filter(complete.cases(pests_metaRNA)) %>% 
-  ggplot(aes(factor(pests_sppDNA), factor(pests_sppRNA), 
-             colour = factor(pests_metaRNA)))+
-  geom_jitter(size = 2.5,alpha = 0.6, width = 0.1, height = 0.1)+
-  theme_bw()+
-  facet_wrap(~common_name)
+# pest_detection_spp %>% 
+#   filter(complete.cases(pests_metaRNA)) %>% 
+#   ggplot(aes(factor(pests_sppDNA), factor(pests_sppRNA), 
+#              colour = factor(pests_metaRNA)))+
+#   geom_jitter(size = 2.5,alpha = 0.6, width = 0.1, height = 0.1)+
+#   theme_bw()+
+#   facet_wrap(~common_name)
   
 
 pest_detection %>% 
